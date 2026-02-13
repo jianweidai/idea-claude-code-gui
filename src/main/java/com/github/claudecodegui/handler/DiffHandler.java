@@ -285,6 +285,10 @@ public class DiffHandler extends BaseMessageHandler {
             String filePath = json.has("filePath") ? json.get("filePath").getAsString() : "";
             JsonArray operations = json.has("operations") ? json.getAsJsonArray("operations") : new JsonArray();
             String status = json.has("status") ? json.get("status").getAsString() : "M";
+            String originalContentFromFrontend =
+                    json.has("originalContent") && !json.get("originalContent").isJsonNull()
+                            ? json.get("originalContent").getAsString()
+                            : null;
 
             LOG.info("Showing editable diff for file: " + filePath + " with " + operations.size() + " operations, status: " + status);
 
@@ -320,11 +324,14 @@ public class DiffHandler extends BaseMessageHandler {
                         }
                     }
 
-                    // Rebuild the original content (BEFORE modifications) by reverse-applying operations
                     String originalContent;
                     if (isNewFile) {
                         // New file: original content is empty
                         originalContent = "";
+                    } else if (originalContentFromFrontend != null && !originalContentFromFrontend.isEmpty()) {
+                        // 优先使用前端传来的快照，避免 streamContent 场景下反向重建不准确
+                        originalContent = originalContentFromFrontend;
+                        LOG.info("Using original content snapshot from frontend for editable diff");
                     } else {
                         // Modified file: rebuild original content by reverse-applying operations
                         originalContent = ContentRebuildUtil.rebuildBeforeContent(currentContent, operations);
@@ -527,25 +534,32 @@ public class DiffHandler extends BaseMessageHandler {
                         LOG.info("Using cached original content for full file diff");
                         beforeContent = originalContent;
 
-                        // 计算修改后的内容：在原始内容上应用 oldString → newString 替换
-                        if (replaceAll) {
+                        // 优先使用磁盘上的当前文件内容作为 "After"，避免 oldString 为空时出现错误拼接
+                        String currentFileContent = null;
+                        if (file != null) {
+                            try {
+                                file.refresh(false, false);
+                                Charset charset = file.getCharset() != null ? file.getCharset() : StandardCharsets.UTF_8;
+                                currentFileContent = new String(file.contentsToByteArray(), charset);
+                            } catch (IOException e) {
+                                LOG.warn("Failed to read current file content, fallback to replacement logic: " + e.getMessage());
+                            }
+                        }
+
+                        if (currentFileContent != null) {
+                            afterContent = currentFileContent;
+                        } else if (replaceAll && !oldString.isEmpty()) {
                             afterContent = beforeContent.replace(oldString, newString);
-                        } else {
+                        } else if (!oldString.isEmpty()) {
                             int index = beforeContent.indexOf(oldString);
                             if (index >= 0) {
                                 afterContent = beforeContent.substring(0, index) + newString + beforeContent.substring(index + oldString.length());
                             } else {
-                                // oldString 不在原始内容中，使用当前文件内容
-                                if (file != null) {
-                                    try {
-                                        afterContent = new String(file.contentsToByteArray(), file.getCharset());
-                                    } catch (IOException e) {
-                                        afterContent = "";
-                                    }
-                                } else {
-                                    afterContent = "";
-                                }
+                                afterContent = newString.isEmpty() ? beforeContent : newString;
                             }
+                        } else {
+                            // oldString 为空时无法安全重建，避免出现 newString + beforeContent 的拼接异常
+                            afterContent = newString.isEmpty() ? beforeContent : newString;
                         }
                     } else {
                         // 没有缓存的原始内容：只展示编辑部分（oldString → newString）

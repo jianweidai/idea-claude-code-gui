@@ -82,13 +82,14 @@ export const showMultiEditDiff = (
 export const showEditableDiff = (
   filePath: string,
   operations: Array<{ oldString: string; newString: string; replaceAll?: boolean }>,
-  status: 'A' | 'M'
+  status: 'A' | 'M',
+  originalContent?: string
 ) => {
   // Security: Validate file path (defense-in-depth, backend also validates)
   if (!isValidPath(filePath)) {
     return;
   }
-  sendToJava('show_editable_diff', { filePath, operations, status });
+  sendToJava('show_editable_diff', { filePath, operations, status, originalContent });
 };
 
 /**

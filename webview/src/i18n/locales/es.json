@@ -82,7 +82,23 @@
     "clearCommandDescription": "Borrar historial de conversación e iniciar nueva sesión",
     "attachmentFile": "[Adjunto: {{fileName}}]",
     "attachmentsUploaded": "[Archivos adjuntos cargados]",
-    "streamingConnected": "Claude conectado, entendiendo tu pregunta"
+    "streamingConnected": "Claude conectado, entendiendo tu pregunta",
+    "cursorModeCommandDefault": "Cambiar a modo predeterminado",
+    "cursorModeCommandPlan": "Cambiar a modo plan (solo planificar)",
+    "cursorModeCommandAsk": "Cambiar a modo preguntas (solo responder)",
+    "cursorModeCommandOnlyCursor": "Disponible solo en modo Cursor",
+    "cursorModeCommandHint": "Modo actual: {{mode}} (/cursor default|plan|ask)",
+    "cursorModeCommandSwitched": "Cambiado a modo {{mode}}",
+    "cursorModeLabelDefault": "Predeterminado",
+    "cursorModeLabelPlan": "Plan",
+    "cursorModeLabelAsk": "Preguntas",
+    "cursorModeBadgeTitle": "Modo Cursor",
+    "cursorModeBadgePrefix": "Cursor",
+    "cursorModeBadge": {
+      "default": "Predeterminado",
+      "plan": "Plan",
+      "ask": "Preguntas"
+    }
   },
   "settings": {
     "title": "Configuración",

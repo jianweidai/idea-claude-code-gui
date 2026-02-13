@@ -5,12 +5,13 @@
 
 import { useState, useCallback } from 'react';
 import type { McpServer, ServerToolsState, ServerRefreshState, RefreshLog, CacheKeys } from '../types';
+import type { McpProviderType } from '../types';
 import { sendToJava } from '../../../utils/bridge';
 import { clearToolsCache, clearAllToolsCache } from '../utils';
 import type { ToastMessage } from '../../Toast';
 
 export interface UseServerManagementOptions {
-  isCodexMode: boolean;
+  providerType: McpProviderType;
   messagePrefix: string;
   cacheKeys: CacheKeys;
   setServerTools: React.Dispatch<React.SetStateAction<ServerToolsState>>;
@@ -33,7 +34,7 @@ export interface UseServerManagementReturn {
  * 服务器管理操作 Hook
  */
 export function useServerManagement({
-  isCodexMode,
+  providerType,
   messagePrefix,
   cacheKeys,
   setServerTools,
@@ -44,6 +45,8 @@ export function useServerManagement({
   onToast,
   t,
 }: UseServerManagementOptions): UseServerManagementReturn {
+  const isCodexMode = providerType === 'codex';
+  const isCursorMode = providerType === 'cursor';
   // 单个服务器刷新状态
   const [serverRefreshStates, setServerRefreshStates] = useState<ServerRefreshState>({});
 
@@ -101,16 +104,21 @@ export function useServerManagement({
 
   // 切换服务器启用状态
   const handleToggleServer = useCallback((server: McpServer, enabled: boolean) => {
-    // Set apps based on current provider mode
-    const updatedServer: McpServer = {
-      ...server,
-      enabled,
-      apps: {
-        claude: isCodexMode ? (server.apps?.claude ?? false) : enabled,
-        codex: isCodexMode ? enabled : (server.apps?.codex ?? false),
-        gemini: server.apps?.gemini ?? false,
-      }
-    };
+    // Cursor MCP 由 cursor-agent CLI 管理，不使用 apps 字段。
+    const updatedServer: McpServer = isCursorMode
+      ? {
+          ...server,
+          enabled,
+        }
+      : {
+          ...server,
+          enabled,
+          apps: {
+            claude: isCodexMode ? (server.apps?.claude ?? false) : enabled,
+            codex: isCodexMode ? enabled : (server.apps?.codex ?? false),
+            gemini: server.apps?.gemini ?? false,
+          }
+        };
 
     sendToJava(`toggle_${messagePrefix}mcp_server`, updatedServer);
 
@@ -124,7 +132,7 @@ export function useServerManagement({
 
     loadServers();
     loadServerStatus();
-  }, [isCodexMode, messagePrefix, onToast, t, loadServers, loadServerStatus]);
+  }, [isCodexMode, isCursorMode, messagePrefix, onToast, t, loadServers, loadServerStatus]);
 
   return {
     serverRefreshStates,

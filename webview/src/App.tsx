@@ -34,8 +34,8 @@ import {
   getContentBlocks as getContentBlocksUtil,
   mergeConsecutiveAssistantMessages,
 } from './utils/messageUtils';
-import { CLAUDE_MODELS, CODEX_MODELS } from './components/ChatInputBox/types';
-import type { Attachment, ChatInputBoxHandle, PermissionMode, ReasoningEffort, SelectedAgent } from './components/ChatInputBox/types';
+import { CLAUDE_MODELS, CODEX_MODELS, CURSOR_MODELS } from './components/ChatInputBox/types';
+import type { Attachment, ChatInputBoxHandle, CursorMode, PermissionMode, ReasoningEffort, SelectedAgent } from './components/ChatInputBox/types';
 import { StatusPanel, StatusPanelErrorBoundary } from './components/StatusPanel';
 import { ToastContainer, type ToastMessage } from './components/Toast';
 import { ScrollControl } from './components/ScrollControl';
@@ -53,6 +53,7 @@ import type {
   ToolResultBlock,
 } from './types';
 import type { ProviderConfig } from './types/provider';
+import { STORAGE_KEYS } from './types/provider';
 
 type ViewMode = 'chat' | 'history' | 'settings';
 
@@ -159,6 +160,24 @@ const App = () => {
   const [currentProvider, setCurrentProvider] = useState('claude');
   const [selectedClaudeModel, setSelectedClaudeModel] = useState(CLAUDE_MODELS[0].id);
   const [selectedCodexModel, setSelectedCodexModel] = useState(CODEX_MODELS[0].id);
+  const [selectedCursorModel, setSelectedCursorModel] = useState(CURSOR_MODELS[0].id);
+  const [cursorMode, setCursorMode] = useState<CursorMode>('default');
+  const [cursorModels, setCursorModels] = useState(() => {
+    if (typeof window === 'undefined' || !window.localStorage) {
+      return CURSOR_MODELS;
+    }
+    try {
+      const cached = window.localStorage.getItem(STORAGE_KEYS.CURSOR_MODELS_CACHE);
+      if (!cached) return CURSOR_MODELS;
+      const parsed = JSON.parse(cached);
+      if (!parsed || !Array.isArray(parsed.models) || parsed.models.length === 0) {
+        return CURSOR_MODELS;
+      }
+      return parsed.models;
+    } catch {
+      return CURSOR_MODELS;
+    }
+  });
   const [claudePermissionMode, setClaudePermissionMode] = useState<PermissionMode>('bypassPermissions');
   const [permissionMode, setPermissionMode] = useState<PermissionMode>('bypassPermissions');
   // Codex reasoning effort (thinking depth)
@@ -199,14 +218,26 @@ const App = () => {
     currentSessionIdRef.current = currentSessionId;
   }, [currentSessionId]);
 
+  const selectedCursorModelRef = useRef(selectedCursorModel);
+  useEffect(() => {
+    selectedCursorModelRef.current = selectedCursorModel;
+  }, [selectedCursorModel]);
+
   // Context state (active file and selection) - 保留用于 ContextBar 显示
   const [contextInfo, setContextInfo] = useState<ContextInfo | null>(null);
 
   // 根据当前提供商选择显示的模型
-  const selectedModel = currentProvider === 'codex' ? selectedCodexModel : selectedClaudeModel;
+  const selectedModel = currentProvider === 'codex'
+    ? selectedCodexModel
+    : currentProvider === 'cursor'
+      ? selectedCursorModel
+      : selectedClaudeModel;
 
   // 🔧 根据当前提供商判断对应的 SDK 是否已安装
   const currentSdkInstalled = (() => {
+    if (currentProvider === 'cursor') {
+      return true;
+    }
     // 状态未加载时，返回 false（显示加载中或未安装提示）
     if (!sdkStatusLoaded) return false;
     // 提供商 -> SDK 映射
@@ -366,16 +397,18 @@ const App = () => {
       let restoredProvider = 'claude';
       let restoredClaudeModel = CLAUDE_MODELS[0].id;
       let restoredCodexModel = CODEX_MODELS[0].id;
+      let restoredCursorModel = CURSOR_MODELS[0].id;
+      let restoredCursorMode: CursorMode = 'default';
       let initialPermissionMode: PermissionMode = 'bypassPermissions';
 
       if (saved) {
         const state = JSON.parse(saved);
 
         // 验证并恢复提供商
-        if (['claude', 'codex'].includes(state.provider)) {
+        if (['claude', 'codex', 'cursor'].includes(state.provider)) {
           restoredProvider = state.provider;
           setCurrentProvider(state.provider);
-          if (state.provider === 'codex') {
+          if (state.provider === 'codex' || state.provider === 'cursor') {
             initialPermissionMode = 'bypassPermissions';
           }
         }
@@ -391,6 +424,16 @@ const App = () => {
           restoredCodexModel = state.codexModel;
           setSelectedCodexModel(state.codexModel);
         }
+
+        // 验证并恢复 Cursor 模型
+        if (CURSOR_MODELS.find(m => m.id === state.cursorModel)) {
+          restoredCursorModel = state.cursorModel;
+          setSelectedCursorModel(state.cursorModel);
+        }
+        if (state.cursorMode === 'default' || state.cursorMode === 'plan' || state.cursorMode === 'ask') {
+          restoredCursorMode = state.cursorMode;
+          setCursorMode(state.cursorMode);
+        }
       }
 
       setPermissionMode(initialPermissionMode);
@@ -404,9 +447,16 @@ const App = () => {
           // 先同步 provider
           sendBridgeEvent('set_provider', restoredProvider);
           // 再同步对应的模型
-          const modelToSync = restoredProvider === 'codex' ? restoredCodexModel : restoredClaudeModel;
+          const modelToSync = restoredProvider === 'codex'
+            ? restoredCodexModel
+            : restoredProvider === 'cursor'
+              ? restoredCursorModel
+              : restoredClaudeModel;
           sendBridgeEvent('set_model', modelToSync);
           sendBridgeEvent('set_mode', initialPermissionMode);
+          if (restoredProvider === 'cursor') {
+            sendBridgeEvent('set_cursor_mode', restoredCursorMode);
+          }
         } else {
           // 如果 sendToJava 还没准备好，稍后重试
           syncRetryCount++;
@@ -422,6 +472,65 @@ const App = () => {
     }
   }, []);
 
+  // 启动时拉取 Cursor 模型列表（仅一次）
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handler = (jsonStr: string) => {
+      try {
+        const payload = JSON.parse(jsonStr);
+        if (!payload || !payload.success || !Array.isArray(payload.models)) {
+          return;
+        }
+        const models = payload.models.map((m: any) => ({
+          id: String(m.id),
+          label: String(m.label || m.id),
+          description: typeof m.description === 'string' ? m.description : undefined,
+        }));
+        if (models.length > 0) {
+          setCursorModels(models);
+          try {
+            window.localStorage.setItem(STORAGE_KEYS.CURSOR_MODELS_CACHE, JSON.stringify({
+              models,
+              currentModel: payload.currentModel || null,
+              defaultModel: payload.defaultModel || null,
+              updatedAt: Date.now(),
+            }));
+          } catch {
+          }
+        }
+        const currentSelected = selectedCursorModelRef.current;
+        const exists = models.some((m: any) => String(m.id) === String(currentSelected));
+        if (!exists) {
+          if (payload.defaultModel && typeof payload.defaultModel === 'string') {
+            setSelectedCursorModel(payload.defaultModel);
+          } else if (payload.currentModel && typeof payload.currentModel === 'string') {
+            setSelectedCursorModel(payload.currentModel);
+          }
+        }
+      } catch {
+      }
+    };
+
+    window.updateCursorModels = handler;
+
+    let retryCount = 0;
+    const MAX_RETRIES = 20;
+
+    const requestModels = () => {
+      if (window.sendToJava) {
+        sendBridgeEvent('get_cursor_models');
+      } else {
+        retryCount += 1;
+        if (retryCount < MAX_RETRIES) {
+          setTimeout(requestModels, 100);
+        }
+      }
+    };
+
+    setTimeout(requestModels, 200);
+  }, []);
+
   // 保存模型选择状态到 LocalStorage
   useEffect(() => {
     try {
@@ -429,11 +538,13 @@ const App = () => {
         provider: currentProvider,
         claudeModel: selectedClaudeModel,
         codexModel: selectedCodexModel,
+        cursorModel: selectedCursorModel,
+        cursorMode,
       }));
     } catch {
       // Failed to save model selection state
     }
-  }, [currentProvider, selectedClaudeModel, selectedCodexModel]);
+  }, [currentProvider, selectedClaudeModel, selectedCodexModel, selectedCursorModel, cursorMode]);
 
   // 加载选中的智能体
   useEffect(() => {
@@ -704,13 +815,19 @@ const App = () => {
     if (!text && !hasAttachments) return;
 
     // 检查 SDK 状态
-    if (!sdkStatusLoaded) {
+    if (!sdkStatusLoaded && currentProvider !== 'cursor') {
       addToast(t('chat.sdkStatusLoading'), 'info');
       return;
     }
     if (!currentSdkInstalled) {
+      const providerLabelMap: Record<string, string> = {
+        claude: 'Claude Code',
+        codex: 'Codex',
+        cursor: 'Cursor CLI',
+      };
+      const providerLabel = providerLabelMap[currentProvider] || 'Claude Code';
       addToast(
-        t('chat.sdkNotInstalled', { provider: currentProvider === 'codex' ? 'Codex' : 'Claude Code' }) + ' ' + t('chat.goInstallSdk'),
+        t('chat.sdkNotInstalled', { provider: providerLabel }) + ' ' + t('chat.goInstallSdk'),
         'warning'
       );
       setSettingsInitialTab('dependencies');
@@ -836,7 +953,7 @@ const App = () => {
    * 处理模式选择
    */
   const handleModeSelect = (mode: PermissionMode) => {
-    if (currentProvider === 'codex') {
+    if (currentProvider === 'codex' || currentProvider === 'cursor') {
       setPermissionMode('bypassPermissions');
       sendBridgeEvent('set_mode', 'bypassPermissions');
       return;
@@ -854,6 +971,8 @@ const App = () => {
       setSelectedClaudeModel(modelId);
     } else if (currentProvider === 'codex') {
       setSelectedCodexModel(modelId);
+    } else if (currentProvider === 'cursor') {
+      setSelectedCursorModel(modelId);
     }
     sendBridgeEvent('set_model', modelId);
   };
@@ -870,14 +989,34 @@ const App = () => {
 
     setCurrentProvider(providerId);
     sendBridgeEvent('set_provider', providerId);
-    const modeToSet = providerId === 'codex' ? 'bypassPermissions' : claudePermissionMode;
+    const modeToSet = providerId === 'codex' || providerId === 'cursor' ? 'bypassPermissions' : claudePermissionMode;
     setPermissionMode(modeToSet);
     sendBridgeEvent('set_mode', modeToSet);
 
     // 切换 provider 时,同时发送对应的模型
-    const newModel = providerId === 'codex' ? selectedCodexModel : selectedClaudeModel;
+    const newModel = providerId === 'codex'
+      ? selectedCodexModel
+      : providerId === 'cursor'
+        ? selectedCursorModel
+        : selectedClaudeModel;
     sendBridgeEvent('set_model', newModel);
+    if (providerId === 'cursor') {
+      sendBridgeEvent('set_cursor_mode', cursorMode);
+    }
   };
+
+  /**
+   * 处理 Cursor 模式选择
+   */
+  const handleCursorModeChange = (mode: CursorMode) => {
+    setCursorMode(mode);
+    sendBridgeEvent('set_cursor_mode', mode);
+  };
+
+  const handleCursorModeSelect = useCallback((mode: CursorMode) => {
+    if (currentProvider !== 'cursor') return;
+    handleCursorModeChange(mode);
+  }, [currentProvider, cursorMode]);
 
   /**
    * 处理思考深度选择 (Codex only)
@@ -1090,26 +1229,149 @@ const App = () => {
 
   // 从消息中提取最新的 todos 用于全局 TodoPanel 显示
   const globalTodos = useMemo(() => {
-    // 从后往前遍历，找到最新的 todowrite 工具调用
+    const normalizeStatus = (raw: unknown): TodoItem['status'] => {
+      const status = String(raw ?? '').trim().toLowerCase();
+      if (status === 'in_progress' || status === 'todo_status_in_progress') return 'in_progress';
+      if (status === 'completed' || status === 'todo_status_completed') return 'completed';
+      if (status === 'pending' || status === 'todo_status_pending') return 'pending';
+      return 'pending';
+    };
+
+    const normalizeTodos = (candidate: unknown): TodoItem[] => {
+      if (!Array.isArray(candidate)) return [];
+      return candidate
+        .map((item) => {
+          if (!item || typeof item !== 'object') return null;
+          const obj = item as Record<string, unknown>;
+          const content = typeof obj.content === 'string'
+            ? obj.content
+            : (typeof obj.activeForm === 'string' ? obj.activeForm : '');
+          if (!content) return null;
+          const normalized: TodoItem = {
+            content,
+            status: normalizeStatus(obj.status),
+          };
+          if (typeof obj.id === 'string') {
+            normalized.id = obj.id;
+          }
+          return normalized;
+        })
+        .filter((item): item is TodoItem => Boolean(item));
+    };
+
+    const extractJsonArrayFromText = (text: string): TodoItem[] => {
+      const trimmed = text.trim();
+      if (!trimmed) return [];
+
+      const unwrapFence = (value: string): string => {
+        const fenceMatch = value.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+        return fenceMatch ? fenceMatch[1].trim() : value;
+      };
+
+      const direct = unwrapFence(trimmed);
+      const attempts: string[] = [direct];
+      const start = direct.indexOf('[');
+      const end = direct.lastIndexOf(']');
+      if (start >= 0 && end > start) {
+        attempts.push(direct.slice(start, end + 1));
+      }
+
+      for (const candidate of attempts) {
+        try {
+          const parsed = JSON.parse(candidate);
+          const todos = normalizeTodos(parsed);
+          if (todos.length > 0) return todos;
+        } catch {
+        }
+      }
+      return [];
+    };
+
+    const extractTodosFromToolResult = (msg: ClaudeMessage): TodoItem[] => {
+      const raw = msg.raw;
+      if (!raw || typeof raw === 'string') return [];
+      const message = (raw as { message?: { content?: unknown } }).message;
+      const content = message?.content;
+      if (!Array.isArray(content)) return [];
+      for (const block of content) {
+        if (!block || typeof block !== 'object') continue;
+        const obj = block as { type?: unknown; content?: unknown };
+        if (obj.type !== 'tool_result') continue;
+        if (typeof obj.content === 'string') {
+          const parsed = extractJsonArrayFromText(obj.content);
+          if (parsed.length > 0) return parsed;
+        } else if (Array.isArray(obj.content)) {
+          for (const item of obj.content) {
+            if (item && typeof item === 'object') {
+              const text = (item as { text?: unknown }).text;
+              if (typeof text === 'string') {
+                const parsed = extractJsonArrayFromText(text);
+                if (parsed.length > 0) return parsed;
+              }
+            }
+          }
+        }
+      }
+      return [];
+    };
+
+    const pickFirstTodos = (...candidates: unknown[]): TodoItem[] => {
+      for (const candidate of candidates) {
+        const parsed = normalizeTodos(candidate);
+        if (parsed.length > 0) return parsed;
+      }
+      return [];
+    };
+
+    // 从后往前遍历，优先取最新的 todo 更新
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i];
-      if (msg.type !== 'assistant') continue;
+      // 兼容 Cursor 将 todo 放在 user/tool_result 内容中的场景
+      const toolResultTodos = extractTodosFromToolResult(msg);
+      if (toolResultTodos.length > 0) {
+        return toolResultTodos;
+      }
 
       const blocks = getContentBlocks(msg);
-      // 从后往前遍历 blocks，找到最新的 todowrite
       for (let j = blocks.length - 1; j >= 0; j--) {
         const block = blocks[j];
-        if (
-          block.type === 'tool_use' &&
-          block.name?.toLowerCase() === 'todowrite' &&
-          Array.isArray((block.input as { todos?: TodoItem[] })?.todos)
-        ) {
-          return (block.input as { todos: TodoItem[] }).todos;
+
+        if (block.type === 'tool_use') {
+          const input = (block.input ?? {}) as Record<string, unknown>;
+          const toolName = (block.name ?? '').toLowerCase();
+
+          // 兼容 codex/cursor 不同 todo 工具的字段命名
+          const todos = pickFirstTodos(input.todos, input.newTodos, input.items);
+          if (todos.length > 0) {
+            return todos;
+          }
+
+          // 兜底：支持 update_plan 的 plan 结构
+          if (toolName === 'update_plan' && Array.isArray(input.plan)) {
+            const planTodos = normalizeTodos(
+              (input.plan as Array<Record<string, unknown>>).map((p, idx) => ({
+                id: String(idx),
+                content: p.step,
+                status: p.status,
+              }))
+            );
+            if (planTodos.length > 0) {
+              return planTodos;
+            }
+          }
+        }
+
+        // 兼容 Cursor 将 todo 以 JSON 文本输出的场景
+        if (block.type === 'text' && typeof block.text === 'string') {
+          const parsed = extractJsonArrayFromText(block.text);
+          if (parsed.length > 0) {
+            return parsed;
+          }
         }
       }
     }
     return [];
-  }, [messages]);
+  }, [messages, getContentBlocks]);
 
   const canRewindFromMessageIndex = (userMessageIndex: number) => {
     if (userMessageIndex < 0 || userMessageIndex >= mergedMessages.length) {
@@ -1466,6 +1728,9 @@ const App = () => {
       <ChatHeader
         currentView={currentView}
         sessionTitle={sessionTitle}
+        currentProvider={currentProvider}
+        cursorMode={cursorMode}
+        onCursorModeSelect={handleCursorModeSelect}
         t={t}
         onBack={() => setCurrentView('chat')}
         onNewSession={createNewSession}
@@ -1573,6 +1838,9 @@ const App = () => {
             onProviderSelect={handleProviderSelect}
             reasoningEffort={reasoningEffort}
             onReasoningChange={handleReasoningChange}
+            cursorMode={cursorMode}
+            onCursorModeChange={handleCursorModeChange}
+            cursorModels={cursorModels}
             onToggleThinking={handleToggleThinking}
             streamingEnabled={streamingEnabledSetting}
             onStreamingEnabledChange={handleStreamingEnabledChange}

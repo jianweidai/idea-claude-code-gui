@@ -7,9 +7,10 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import type { McpServer, McpServerStatusInfo, ServerToolsState, RefreshLog, CacheKeys } from '../types';
 import { sendToJava } from '../../../utils/bridge';
 import { readCache, readToolsCache } from '../utils';
+import type { McpProviderType } from '../types';
 
 export interface UseServerDataOptions {
-  isCodexMode: boolean;
+  providerType: McpProviderType;
   messagePrefix: string;
   cacheKeys: CacheKeys;
   t: (key: string, options?: Record<string, unknown>) => string;
@@ -41,12 +42,14 @@ export interface UseServerDataReturn {
  * 服务器数据加载和初始化 Hook
  */
 export function useServerData({
-  isCodexMode,
+  providerType,
   messagePrefix,
   cacheKeys,
   t,
   onLog
 }: UseServerDataOptions): UseServerDataReturn {
+  const isCodexMode = providerType === 'codex';
+
   // 状态
   const [servers, setServers] = useState<McpServer[]>([]);
   const [serverStatus, setServerStatus] = useState<Map<string, McpServerStatusInfo>>(new Map());
@@ -80,10 +83,10 @@ export function useServerData({
       undefined,
       undefined,
       `get_${messagePrefix}mcp_server_status request to backend`,
-      `Querying MCP server connection status via ${isCodexMode ? 'Codex' : 'Claude'} SDK`
+      `Querying MCP server connection status via ${providerType === 'codex' ? 'Codex' : providerType === 'cursor' ? 'Cursor CLI' : 'Claude'} SDK`
     );
     sendToJava(`get_${messagePrefix}mcp_server_status`, {});
-  }, [messagePrefix, isCodexMode, t, onLog]);
+  }, [messagePrefix, providerType, t, onLog]);
 
   // 加载服务器工具列表
   const loadServerTools = useCallback((server: McpServer, forceRefresh = false) => {
@@ -139,11 +142,11 @@ export function useServerData({
       'info',
       undefined,
       server.name || server.id,
-      `get_mcp_server_tools request to backend`
+      `get_${messagePrefix}mcp_server_tools request to backend`
     );
 
-    sendToJava('get_mcp_server_tools', { serverId: server.id, forceRefresh });
-  }, [isCodexMode, cacheKeys, t, onLog]);
+    sendToJava(`get_${messagePrefix}mcp_server_tools`, { serverId: server.id, forceRefresh });
+  }, [isCodexMode, cacheKeys, t, onLog, messagePrefix]);
 
   // 初始化和数据加载
   useEffect(() => {
@@ -274,24 +277,30 @@ export function useServerData({
     };
 
     // 注册回调
-    if (isCodexMode) {
+    if (providerType === 'codex') {
       window.updateCodexMcpServers = handleServerListUpdate;
       window.updateCodexMcpServerStatus = handleServerStatusUpdate;
+    } else if (providerType === 'cursor') {
+      window.updateCursorMcpServers = handleServerListUpdate;
+      window.updateCursorMcpServerStatus = handleServerStatusUpdate;
     } else {
       window.updateMcpServers = handleServerListUpdate;
       window.updateMcpServerStatus = handleServerStatusUpdate;
     }
 
     return () => {
-      if (isCodexMode) {
+      if (providerType === 'codex') {
         window.updateCodexMcpServers = undefined;
         window.updateCodexMcpServerStatus = undefined;
+      } else if (providerType === 'cursor') {
+        window.updateCursorMcpServers = undefined;
+        window.updateCursorMcpServerStatus = undefined;
       } else {
         window.updateMcpServers = undefined;
         window.updateMcpServerStatus = undefined;
       }
     };
-  }, [isCodexMode, t, onLog]);
+  }, [providerType, t, onLog]);
 
   return {
     // 状态

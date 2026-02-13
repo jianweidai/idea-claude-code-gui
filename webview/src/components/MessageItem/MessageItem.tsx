@@ -14,7 +14,7 @@ import {
 import { ContentBlockRenderer } from './ContentBlockRenderer';
 import { formatTime } from '../../utils/helpers';
 import { copyToClipboard } from '../../utils/copyUtils';
-import { READ_TOOL_NAMES, EDIT_TOOL_NAMES, BASH_TOOL_NAMES, isToolName } from '../../utils/toolConstants';
+import { READ_TOOL_NAMES, EDIT_TOOL_NAMES, BASH_TOOL_NAMES, hasEditLikeInput, isToolName } from '../../utils/toolConstants';
 
 export interface MessageItemProps {
   message: ClaudeMessage;
@@ -131,7 +131,10 @@ function groupBlocks(blocks: ClaudeContentBlock[]): GroupedBlock[] {
         readGroupStartIndex = idx;
       }
       currentReadGroup.push(block);
-    } else if (isToolBlockOfType(block, EDIT_TOOL_NAMES)) {
+    } else if (
+      isToolBlockOfType(block, EDIT_TOOL_NAMES) ||
+      (block.type === 'tool_use' && hasEditLikeInput((block.input ?? {}) as Record<string, unknown>))
+    ) {
       flushReadGroup();
       flushBashGroup();
       if (currentEditGroup.length === 0) {

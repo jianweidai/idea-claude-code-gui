@@ -5,13 +5,15 @@
 
 import type { McpServer, McpServerStatusInfo } from '../../types/mcp';
 import type { ServerRefreshState, ServerToolsState, McpTool } from './types';
-import { getServerStatusInfo, getStatusIcon, getStatusColor, getStatusText, getIconColor, getServerInitial, isServerEnabled } from './utils';
+import type { McpProviderType } from './types';
+import { getServerStatusInfo, getStatusIcon, getStatusColor, getStatusText, getIconColor, getServerInitial, isServerEnabledByProvider } from './utils';
 import { ServerToolsPanel } from './ServerToolsPanel';
 
 export interface ServerCardProps {
   server: McpServer;
   isExpanded: boolean;
-  isCodexMode: boolean;
+  providerType: McpProviderType;
+  readOnly?: boolean;
   serverStatus: Map<string, McpServerStatusInfo>;
   refreshState?: ServerRefreshState[string];
   toolsInfo?: ServerToolsState[string];
@@ -33,7 +35,8 @@ export interface ServerCardProps {
 export function ServerCard({
   server,
   isExpanded,
-  isCodexMode,
+  providerType,
+  readOnly = false,
   serverStatus,
   toolsInfo,
   t,
@@ -48,7 +51,7 @@ export function ServerCard({
 }: ServerCardProps) {
   const statusInfo = getServerStatusInfo(server, serverStatus);
   const status = statusInfo?.status;
-  const enabled = isServerEnabled(server, isCodexMode);
+  const enabled = isServerEnabledByProvider(server, providerType);
   const isConnected = statusInfo?.status === 'connected';
 
   return (
@@ -66,24 +69,28 @@ export function ServerCard({
           {/* 连接状态指示器 */}
           <span
             className="status-indicator"
-            style={{ color: getStatusColor(server, status, isCodexMode) }}
-            title={getStatusText(server, status, isCodexMode, t)}
+            style={{ color: getStatusColor(server, status, providerType) }}
+            title={getStatusText(server, status, providerType, t)}
           >
-            <span className={`codicon ${getStatusIcon(server, status, isCodexMode)}`}></span>
+            <span className={`codicon ${getStatusIcon(server, status, providerType)}`}></span>
           </span>
         </div>
         <div className="header-right-section" onClick={(e) => e.stopPropagation()}>
-          {/* 编辑按钮 */}
-          <button
-            className="icon-btn edit-btn"
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit();
-            }}
-            title={t('chat.editConfig')}
-          >
-            <span className="codicon codicon-edit"></span>
-          </button>
+          {!readOnly && (
+            <>
+              {/* 编辑按钮 */}
+              <button
+                className="icon-btn edit-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit();
+                }}
+                title={t('chat.editConfig')}
+              >
+                <span className="codicon codicon-edit"></span>
+              </button>
+            </>
+          )}
           {/* 复制按钮 */}
           <button
             className="icon-btn copy-btn"
@@ -95,17 +102,21 @@ export function ServerCard({
           >
             <span className="codicon codicon-copy"></span>
           </button>
-          {/* 删除按钮 */}
-          <button
-            className="icon-btn delete-btn"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
-            title={t('chat.deleteServer')}
-          >
-            <span className="codicon codicon-trash"></span>
-          </button>
+          {!readOnly && (
+            <>
+              {/* 删除按钮 */}
+              <button
+                className="icon-btn delete-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+                title={t('chat.deleteServer')}
+              >
+                <span className="codicon codicon-trash"></span>
+              </button>
+            </>
+          )}
           <label className="toggle-switch">
             <input
               type="checkbox"
@@ -126,10 +137,10 @@ export function ServerCard({
               <span className="info-label">{t('mcp.connectionStatus')}:</span>
               <span
                 className="info-value status-value"
-                style={{ color: getStatusColor(server, statusInfo?.status, isCodexMode) }}
+                style={{ color: getStatusColor(server, statusInfo?.status, providerType) }}
               >
-                <span className={`codicon ${getStatusIcon(server, statusInfo?.status, isCodexMode)}`}></span>
-                {' '}{getStatusText(server, statusInfo?.status, isCodexMode, t)}
+                <span className={`codicon ${getStatusIcon(server, statusInfo?.status, providerType)}`}></span>
+                {' '}{getStatusText(server, statusInfo?.status, providerType, t)}
               </span>
             </div>
             {statusInfo?.serverInfo && (
@@ -170,7 +181,7 @@ export function ServerCard({
           <ServerToolsPanel
             toolsInfo={toolsInfo}
             isConnected={isConnected}
-            isCodexMode={isCodexMode}
+            isCodexMode={providerType === 'codex'}
             t={t}
             onLoadTools={onLoadTools}
             onToolHover={onToolHover}

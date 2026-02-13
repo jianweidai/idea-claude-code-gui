@@ -32,13 +32,24 @@ import { ServerCard } from './ServerCard';
  */
 export function McpSettingsSection({ currentProvider = 'claude' }: McpSettingsSectionProps) {
   const { t } = useTranslation();
-  const isCodexMode = currentProvider === 'codex';
+  const providerType = useMemo<'claude' | 'codex' | 'cursor'>(() => {
+    if (currentProvider === 'codex') return 'codex';
+    if (currentProvider === 'cursor') return 'cursor';
+    return 'claude';
+  }, [currentProvider]);
+  const isCodexMode = providerType === 'codex';
+  const isCursorMode = providerType === 'cursor';
+  const readOnlyMode = isCursorMode;
 
   // Generate message type prefix based on provider
-  const messagePrefix = useMemo(() => (isCodexMode ? 'codex_' : ''), [isCodexMode]);
+  const messagePrefix = useMemo(() => {
+    if (providerType === 'codex') return 'codex_';
+    if (providerType === 'cursor') return 'cursor_';
+    return '';
+  }, [providerType]);
 
   // Get provider-specific cache keys
-  const cacheKeys = useMemo(() => getCacheKeys(isCodexMode ? 'codex' : 'claude'), [isCodexMode]);
+  const cacheKeys = useMemo(() => getCacheKeys(providerType), [providerType]);
 
   // 下拉菜单状态
   const [showDropdown, setShowDropdown] = useState(false);
@@ -115,7 +126,7 @@ export function McpSettingsSection({ currentProvider = 'claude' }: McpSettingsSe
     loadServerStatus,
     loadServerTools,
   } = useServerData({
-    isCodexMode,
+    providerType,
     messagePrefix,
     cacheKeys,
     t,
@@ -129,7 +140,7 @@ export function McpSettingsSection({ currentProvider = 'claude' }: McpSettingsSe
     handleRefreshSingleServer,
     handleToggleServer,
   } = useServerManagement({
-    isCodexMode,
+    providerType,
     messagePrefix,
     cacheKeys,
     setServerTools,
@@ -143,7 +154,7 @@ export function McpSettingsSection({ currentProvider = 'claude' }: McpSettingsSe
 
   // 使用工具列表更新 Hook
   useToolsUpdate({
-    isCodexMode,
+    providerType,
     cacheKeys,
     setServerTools,
     onLog: addLog,
@@ -176,18 +187,21 @@ export function McpSettingsSection({ currentProvider = 'claude' }: McpSettingsSe
 
   // 编辑服务器
   const handleEdit = useCallback((server: McpServer) => {
+    if (readOnlyMode) return;
     setEditingServer(server);
     setShowServerDialog(true);
-  }, []);
+  }, [readOnlyMode]);
 
   // 删除服务器
   const handleDelete = useCallback((server: McpServer) => {
+    if (readOnlyMode) return;
     setDeletingServer(server);
     setShowConfirmDialog(true);
-  }, []);
+  }, [readOnlyMode]);
 
   // 确认删除
   const confirmDelete = useCallback(() => {
+    if (readOnlyMode) return;
     if (deletingServer) {
       sendToJava(`delete_${messagePrefix}mcp_server`, { id: deletingServer.id });
       addToast(`${t('mcp.deleted')} ${deletingServer.name || deletingServer.id}`, 'success');
@@ -198,7 +212,7 @@ export function McpSettingsSection({ currentProvider = 'claude' }: McpSettingsSe
     }
     setShowConfirmDialog(false);
     setDeletingServer(null);
-  }, [deletingServer, messagePrefix, addToast, t, loadServers]);
+  }, [deletingServer, messagePrefix, addToast, t, loadServers, readOnlyMode]);
 
   // 取消删除
   const cancelDelete = useCallback(() => {
@@ -208,10 +222,11 @@ export function McpSettingsSection({ currentProvider = 'claude' }: McpSettingsSe
 
   // 手动添加服务器
   const handleAddManual = useCallback(() => {
+    if (readOnlyMode) return;
     setShowDropdown(false);
     setEditingServer(null);
     setShowServerDialog(true);
-  }, []);
+  }, [readOnlyMode]);
 
   // 从市场添加服务器
   const handleAddFromMarket = useCallback(() => {
@@ -221,6 +236,7 @@ export function McpSettingsSection({ currentProvider = 'claude' }: McpSettingsSe
 
   // 保存服务器
   const handleSaveServer = useCallback((server: McpServer) => {
+    if (readOnlyMode) return;
     if (editingServer) {
       if (editingServer.id !== server.id) {
         sendToJava(`delete_${messagePrefix}mcp_server`, { id: editingServer.id });
@@ -241,10 +257,11 @@ export function McpSettingsSection({ currentProvider = 'claude' }: McpSettingsSe
 
     setShowServerDialog(false);
     setEditingServer(null);
-  }, [editingServer, messagePrefix, addToast, t, loadServers]);
+  }, [editingServer, messagePrefix, addToast, t, loadServers, readOnlyMode]);
 
   // 选择预设
   const handleSelectPreset = useCallback((preset: McpPreset) => {
+    if (readOnlyMode) return;
     const server: McpServer = {
       id: preset.id,
       name: preset.name,
@@ -268,7 +285,7 @@ export function McpSettingsSection({ currentProvider = 'claude' }: McpSettingsSe
     }, 100);
 
     setShowPresetDialog(false);
-  }, [isCodexMode, messagePrefix, addToast, t, loadServers]);
+  }, [isCodexMode, messagePrefix, addToast, t, loadServers, readOnlyMode]);
 
   // 复制 URL
   const handleCopyUrl = useCallback(async (url: string) => {
@@ -350,25 +367,27 @@ export function McpSettingsSection({ currentProvider = 'claude' }: McpSettingsSe
           >
             <span className={`codicon codicon-sync ${loading || statusLoading ? 'spinning' : ''}`}></span>
           </button>
-          <div className="add-dropdown" ref={dropdownRef}>
-            <button className="add-btn" onClick={() => setShowDropdown(!showDropdown)}>
-              <span className="codicon codicon-add"></span>
-              {t('mcp.add')}
-              <span className="codicon codicon-chevron-down"></span>
-            </button>
-            {showDropdown && (
-              <div className="dropdown-menu">
-                <div className="dropdown-item" onClick={handleAddManual}>
-                  <span className="codicon codicon-json"></span>
-                  {t('mcp.manualConfig')}
+          {!readOnlyMode && (
+            <div className="add-dropdown" ref={dropdownRef}>
+              <button className="add-btn" onClick={() => setShowDropdown(!showDropdown)}>
+                <span className="codicon codicon-add"></span>
+                {t('mcp.add')}
+                <span className="codicon codicon-chevron-down"></span>
+              </button>
+              {showDropdown && (
+                <div className="dropdown-menu">
+                  <div className="dropdown-item" onClick={handleAddManual}>
+                    <span className="codicon codicon-json"></span>
+                    {t('mcp.manualConfig')}
+                  </div>
+                  <div className="dropdown-item" onClick={handleAddFromMarket}>
+                    <span className="codicon codicon-extensions"></span>
+                    {t('mcp.addFromMarket')}
+                  </div>
                 </div>
-                <div className="dropdown-item" onClick={handleAddFromMarket}>
-                  <span className="codicon codicon-extensions"></span>
-                  {t('mcp.addFromMarket')}
-                </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -383,7 +402,8 @@ export function McpSettingsSection({ currentProvider = 'claude' }: McpSettingsSe
                   key={server.id}
                   server={server}
                   isExpanded={expandedServers.has(server.id)}
-                  isCodexMode={isCodexMode}
+                  providerType={providerType}
+                  readOnly={readOnlyMode}
                   serverStatus={serverStatus}
                   refreshState={serverRefreshStates[server.id]}
                   toolsInfo={serverTools[server.id]}

@@ -1,28 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Claude, OpenAI, Gemini } from '@lobehub/icons';
 import { AVAILABLE_PROVIDERS } from '../types';
+import { ProviderIcon } from '../../ProviderIcon';
 
 interface ProviderSelectProps {
   value: string;
   onChange?: (providerId: string) => void;
 }
-
-/**
- * 提供商图标映射
- */
-const ProviderIcon = ({ providerId, size = 16, colored = false }: { providerId: string; size?: number; colored?: boolean }) => {
-  switch (providerId) {
-    case 'claude':
-      return colored ? <Claude.Color size={size} /> : <Claude.Avatar size={size} />;
-    case 'codex':
-      return <OpenAI.Avatar size={size} />;
-    case 'gemini':
-      return colored ? <Gemini.Color size={size} /> : <Gemini.Avatar size={size} />;
-    default:
-      return colored ? <Claude.Color size={size} /> : <Claude.Avatar size={size} />;
-  }
-};
 
 /**
  * ProviderSelect - AI 提供商选择器组件

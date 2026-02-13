@@ -9,7 +9,7 @@ import {
   GenericToolBlock,
   TaskExecutionBlock,
 } from '../toolBlocks';
-import { EDIT_TOOL_NAMES, BASH_TOOL_NAMES, isToolName } from '../../utils/toolConstants';
+import { EDIT_TOOL_NAMES, BASH_TOOL_NAMES, hasEditLikeInput, isToolName } from '../../utils/toolConstants';
 
 /**
  * 获取文件图标 class（与 AttachmentList 保持一致）
@@ -182,7 +182,7 @@ export function ContentBlockRenderer({
       );
     }
 
-    if (isToolName(block.name, EDIT_TOOL_NAMES)) {
+    if (isToolName(block.name, EDIT_TOOL_NAMES) || hasEditLikeInput((block.input ?? {}) as Record<string, unknown>)) {
       return (
         <EditToolBlock
           name={block.name}

@@ -82,7 +82,23 @@
     "clearCommandDescription": "清除對話歷史並新建會話",
     "attachmentFile": "[附件: {{fileName}}]",
     "attachmentsUploaded": "[已上傳附件]",
-    "streamingConnected": "Claude 已成功連接，正在理解問題"
+    "streamingConnected": "Claude 已成功連接，正在理解問題",
+    "cursorModeCommandDefault": "切換為預設模式",
+    "cursorModeCommandPlan": "切換為規劃模式（只規劃不改動）",
+    "cursorModeCommandAsk": "切換為問答模式（只答不改動）",
+    "cursorModeCommandOnlyCursor": "僅在 Cursor 模式下可用",
+    "cursorModeCommandHint": "目前模式：{{mode}}（可用：/cursor default|plan|ask）",
+    "cursorModeCommandSwitched": "已切換為{{mode}}模式",
+    "cursorModeLabelDefault": "預設",
+    "cursorModeLabelPlan": "規劃",
+    "cursorModeLabelAsk": "問答",
+    "cursorModeBadgeTitle": "Cursor 執行模式",
+    "cursorModeBadgePrefix": "Cursor",
+    "cursorModeBadge": {
+      "default": "預設",
+      "plan": "規劃",
+      "ask": "問答"
+    }
   },
   "settings": {
     "title": "設定",

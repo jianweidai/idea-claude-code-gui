@@ -90,6 +90,9 @@ export const ChatInputBox = forwardRef<ChatInputBoxHandle, ChatInputBoxProps>(
       onProviderSelect,
       reasoningEffort = 'medium',
       onReasoningChange,
+      cursorMode = 'default',
+      onCursorModeChange,
+      cursorModels,
       activeFile,
       selectedLines,
       onClearContext,
@@ -487,6 +490,8 @@ export const ChatInputBox = forwardRef<ChatInputBoxHandle, ChatInputBoxProps>(
       sdkStatusLoading,
       sdkInstalled,
       currentProvider,
+      cursorMode,
+      onCursorModeChange,
       clearInput,
       cancelPendingInput: debouncedOnInput.cancel,
       externalAttachments,
@@ -763,12 +768,15 @@ export const ChatInputBox = forwardRef<ChatInputBoxHandle, ChatInputBoxProps>(
           permissionMode={permissionMode}
           currentProvider={currentProvider}
           reasoningEffort={reasoningEffort}
+          cursorMode={cursorMode}
+          cursorModels={cursorModels}
           onSubmit={handleSubmit}
           onStop={onStop}
           onModeSelect={handleModeSelect}
           onModelSelect={handleModelSelect}
           onProviderSelect={onProviderSelect}
           onReasoningChange={onReasoningChange}
+          onCursorModeChange={onCursorModeChange}
           onEnhancePrompt={handleEnhancePrompt}
           alwaysThinkingEnabled={alwaysThinkingEnabled}
           onToggleThinking={onToggleThinking}

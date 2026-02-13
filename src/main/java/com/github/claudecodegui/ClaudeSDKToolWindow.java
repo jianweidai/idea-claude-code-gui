@@ -3,6 +3,7 @@ package com.github.claudecodegui;
 import com.github.claudecodegui.bridge.NodeDetector;
 import com.github.claudecodegui.handler.AgentHandler;
 import com.github.claudecodegui.handler.CodexMcpServerHandler;
+import com.github.claudecodegui.handler.CursorMcpServerHandler;
 import com.github.claudecodegui.handler.DependencyHandler;
 import com.github.claudecodegui.handler.DiffHandler;
 import com.github.claudecodegui.handler.FileExportHandler;
@@ -24,6 +25,7 @@ import com.github.claudecodegui.permission.PermissionRequest;
 import com.github.claudecodegui.permission.PermissionService;
 import com.github.claudecodegui.provider.claude.ClaudeSDKBridge;
 import com.github.claudecodegui.provider.codex.CodexSDKBridge;
+import com.github.claudecodegui.provider.cursor.CursorSDKBridge;
 import com.github.claudecodegui.provider.common.MessageCallback;
 import com.github.claudecodegui.provider.common.SDKResult;
 import com.github.claudecodegui.settings.TabStateService;
@@ -504,6 +506,9 @@ public class ClaudeSDKToolWindow implements ToolWindowFactory, DumbAware {
                             if (window != null && window.codexSDKBridge != null) {
                                 window.codexSDKBridge.cleanupAllProcesses();
                             }
+                            if (window != null && window.cursorSDKBridge != null) {
+                                window.cursorSDKBridge.cleanupAllProcesses();
+                            }
                         } catch (Exception e) {
                             // Shutdown hook 中不要抛出异常
                             LOG.error("[ShutdownHook] 清理进程时出错: " + e.getMessage());
@@ -542,6 +547,7 @@ public class ClaudeSDKToolWindow implements ToolWindowFactory, DumbAware {
         private final JPanel mainPanel;
         private final ClaudeSDKBridge claudeSDKBridge;
         private final CodexSDKBridge codexSDKBridge;
+        private final CursorSDKBridge cursorSDKBridge;
         private final Project project;
         private final CodemossSettingsService settingsService;
         private final HtmlLoader htmlLoader;
@@ -616,6 +622,7 @@ public class ClaudeSDKToolWindow implements ToolWindowFactory, DumbAware {
             this.project = project;
             this.claudeSDKBridge = new ClaudeSDKBridge();
             this.codexSDKBridge = new CodexSDKBridge();
+            this.cursorSDKBridge = new CursorSDKBridge();
             this.settingsService = new CodemossSettingsService();
             this.htmlLoader = new HtmlLoader(getClass());
             this.mainPanel = new JPanel(new BorderLayout());
@@ -760,7 +767,7 @@ public class ClaudeSDKToolWindow implements ToolWindowFactory, DumbAware {
         }
 
         private void initializeSession() {
-            this.session = new ClaudeSession(project, claudeSDKBridge, codexSDKBridge);
+            this.session = new ClaudeSession(project, claudeSDKBridge, codexSDKBridge, cursorSDKBridge);
             loadPermissionModeFromSettings();
         }
 
@@ -774,6 +781,7 @@ public class ClaudeSDKToolWindow implements ToolWindowFactory, DumbAware {
                     String path = savedNodePath.trim();
                     claudeSDKBridge.setNodeExecutable(path);
                     codexSDKBridge.setNodeExecutable(path);
+                    cursorSDKBridge.setNodeExecutable(path);
                     // 验证并缓存 Node.js 版本
                     claudeSDKBridge.verifyAndCacheNodePath(path);
                     LOG.info("Using manually configured Node.js path: " + path);
@@ -793,6 +801,7 @@ public class ClaudeSDKToolWindow implements ToolWindowFactory, DumbAware {
                         // 设置到两个 bridge
                         claudeSDKBridge.setNodeExecutable(detectedPath);
                         codexSDKBridge.setNodeExecutable(detectedPath);
+                        cursorSDKBridge.setNodeExecutable(detectedPath);
 
                         // 验证并缓存版本信息
                         claudeSDKBridge.verifyAndCacheNodePath(detectedPath);
@@ -912,7 +921,7 @@ public class ClaudeSDKToolWindow implements ToolWindowFactory, DumbAware {
                 }
             };
 
-            this.handlerContext = new HandlerContext(project, claudeSDKBridge, codexSDKBridge, settingsService, jsCallback);
+            this.handlerContext = new HandlerContext(project, claudeSDKBridge, codexSDKBridge, cursorSDKBridge, settingsService, jsCallback);
             handlerContext.setSession(session);
 
             this.messageDispatcher = new MessageDispatcher();
@@ -921,6 +930,7 @@ public class ClaudeSDKToolWindow implements ToolWindowFactory, DumbAware {
             messageDispatcher.registerHandler(new ProviderHandler(handlerContext));
             messageDispatcher.registerHandler(new McpServerHandler(handlerContext));
             messageDispatcher.registerHandler(new CodexMcpServerHandler(handlerContext, settingsService.getCodexMcpServerManager()));
+            messageDispatcher.registerHandler(new CursorMcpServerHandler(handlerContext));
             messageDispatcher.registerHandler(new SkillHandler(handlerContext, mainPanel));
             messageDispatcher.registerHandler(new FileHandler(handlerContext));
             messageDispatcher.registerHandler(new SettingsHandler(handlerContext));
@@ -1088,6 +1098,7 @@ public class ClaudeSDKToolWindow implements ToolWindowFactory, DumbAware {
                 String trimmed = savedNodePath.trim();
                 claudeSDKBridge.setNodeExecutable(trimmed);
                 codexSDKBridge.setNodeExecutable(trimmed);
+                cursorSDKBridge.setNodeExecutable(trimmed);
                 nodeResult = claudeSDKBridge.verifyAndCacheNodePath(trimmed);
                 if (nodeResult == null || !nodeResult.isFound()) {
                     showInvalidNodePathPanel(trimmed, nodeResult != null ? nodeResult.getErrorMessage() : null);
@@ -1099,6 +1110,7 @@ public class ClaudeSDKToolWindow implements ToolWindowFactory, DumbAware {
                     props.setValue(NODE_PATH_PROPERTY_KEY, nodeResult.getNodePath());
                     claudeSDKBridge.setNodeExecutable(nodeResult.getNodePath());
                     codexSDKBridge.setNodeExecutable(nodeResult.getNodePath());
+                    cursorSDKBridge.setNodeExecutable(nodeResult.getNodePath());
                     // 关键修复：缓存自动检测到的 Node.js 版本
                     claudeSDKBridge.verifyAndCacheNodePath(nodeResult.getNodePath());
                 }
@@ -1579,12 +1591,14 @@ public class ClaudeSDKToolWindow implements ToolWindowFactory, DumbAware {
                     // 同时清除 Claude 和 Codex 的手动配置
                     claudeSDKBridge.setNodeExecutable(null);
                     codexSDKBridge.setNodeExecutable(null);
+                    cursorSDKBridge.setNodeExecutable(null);
                     LOG.info("Cleared manual Node.js path");
                 } else {
                     props.setValue(NODE_PATH_PROPERTY_KEY, manualPath);
                     // 同时设置 Claude 和 Codex 的 Node.js 路径，并缓存版本信息
                     claudeSDKBridge.setNodeExecutable(manualPath);
                     codexSDKBridge.setNodeExecutable(manualPath);
+                    cursorSDKBridge.setNodeExecutable(manualPath);
                     claudeSDKBridge.verifyAndCacheNodePath(manualPath);
                     LOG.info("Saved manual Node.js path: " + manualPath);
                 }
@@ -1950,7 +1964,7 @@ public class ClaudeSDKToolWindow implements ToolWindowFactory, DumbAware {
             // 清理所有待处理的权限请求，防止旧会话的请求干扰新会话
             permissionHandler.clearPendingRequests();
 
-            session = new ClaudeSession(project, claudeSDKBridge, codexSDKBridge);
+            session = new ClaudeSession(project, claudeSDKBridge, codexSDKBridge, cursorSDKBridge);
 
             // 恢复之前保存的 permission mode、provider、model
             session.setPermissionMode(previousPermissionMode);
@@ -2516,7 +2530,7 @@ public class ClaudeSDKToolWindow implements ToolWindowFactory, DumbAware {
                 // Claude: input_tokens 不包含缓存，需要加上 cache_creation（缓存读取不占用新的上下文窗口）
                 String currentProvider = handlerContext.getCurrentProvider();
                 int usedTokens;
-                if ("codex".equals(currentProvider)) {
+                if ("codex".equals(currentProvider) || "cursor".equals(currentProvider)) {
                     // Codex: input_tokens 已包含缓存读取的 token，不要重复计算
                     usedTokens = inputTokens + outputTokens;
                 } else {
@@ -2524,7 +2538,17 @@ public class ClaudeSDKToolWindow implements ToolWindowFactory, DumbAware {
                     usedTokens = inputTokens + cacheWriteTokens + outputTokens;
                 }
                 int maxTokens = SettingsHandler.getModelContextLimit(handlerContext.getCurrentModel());
-                int percentage = Math.min(100, maxTokens > 0 ? (int) ((usedTokens * 100.0) / maxTokens) : 0);
+
+                // Cursor 场景下很多版本不会返回 usage，避免 Context 一直显示 0%
+                if ("cursor".equals(currentProvider) && lastUsage == null) {
+                    int estimated = estimateCursorUsageFromMessages(messages);
+                    if (estimated > 0) {
+                        usedTokens = estimated;
+                        LOG.info("Cursor usage fallback estimate applied: " + estimated + " tokens");
+                    }
+                }
+
+                double percentage = Math.min(100.0, maxTokens > 0 ? (usedTokens * 100.0) / maxTokens : 0.0);
 
                 LOG.debug("Pushing usage update: provider=" + currentProvider + ", input=" + inputTokens + ", cacheWrite=" + cacheWriteTokens + ", cacheRead=" + cacheReadTokens + ", output=" + outputTokens + ", total=" + usedTokens + ", max=" + maxTokens + ", percentage=" + percentage + "%");
 
@@ -2554,6 +2578,34 @@ public class ClaudeSDKToolWindow implements ToolWindowFactory, DumbAware {
             } catch (Exception e) {
                 LOG.warn("Failed to push usage update: " + e.getMessage(), e);
             }
+        }
+
+        /**
+         * Cursor CLI 某些版本不返回 usage，这里用对话内容长度进行粗略估算。
+         * 估算仅用于 UI 展示，优先级低于真实 usage。
+         */
+        private int estimateCursorUsageFromMessages(List<ClaudeSession.Message> messages) {
+            int estimatedChars = 0;
+            for (ClaudeSession.Message msg : messages) {
+                if (msg == null) continue;
+
+                if (msg.content != null && !msg.content.isEmpty()) {
+                    estimatedChars += Math.min(msg.content.length(), 12000);
+                }
+
+                if (msg.raw != null) {
+                    try {
+                        String rawString = msg.raw.toString();
+                        if (rawString != null && !rawString.isEmpty()) {
+                            estimatedChars += Math.min(rawString.length(), 8000);
+                        }
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+
+            // 粗略换算：中英文混合对话按约 2.8 字符/Token 估计
+            return estimatedChars > 0 ? Math.max(1, (int) Math.round(estimatedChars / 2.8)) : 0;
         }
 
         private void createNewSession() {
@@ -2591,7 +2643,7 @@ public class ClaudeSDKToolWindow implements ToolWindowFactory, DumbAware {
                 permissionHandler.clearPendingRequests();
 
                 // 创建全新的 Session 对象
-                session = new ClaudeSession(project, claudeSDKBridge, codexSDKBridge);
+                session = new ClaudeSession(project, claudeSDKBridge, codexSDKBridge, cursorSDKBridge);
 
                 // 恢复之前保存的 permission mode、provider、model
                 session.setPermissionMode(previousPermissionMode);
@@ -3040,6 +3092,18 @@ public class ClaudeSDKToolWindow implements ToolWindowFactory, DumbAware {
                 }
             } catch (Exception e) {
                 LOG.warn("清理 Codex 进程失败: " + e.getMessage());
+            }
+
+            try {
+                if (cursorSDKBridge != null) {
+                    int activeCount = cursorSDKBridge.getActiveProcessCount();
+                    if (activeCount > 0) {
+                        LOG.info("正在清理 " + activeCount + " 个活跃的 Cursor 进程...");
+                    }
+                    cursorSDKBridge.cleanupAllProcesses();
+                }
+            } catch (Exception e) {
+                LOG.warn("清理 Cursor 进程失败: " + e.getMessage());
             }
 
             try {

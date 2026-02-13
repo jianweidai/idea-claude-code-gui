@@ -847,6 +847,7 @@ export function useWindowCallbacks(options: UseWindowCallbacksOptions): void {
     window.onUsageUpdate = (json) => {
       try {
         const data = JSON.parse(json);
+        console.log('[Frontend][Usage] raw update', data);
         if (typeof data.percentage === 'number') {
           let used = typeof data.usedTokens === 'number' ? data.usedTokens : (typeof data.totalTokens === 'number' ? data.totalTokens : undefined);
           const max = typeof data.maxTokens === 'number' ? data.maxTokens : (typeof data.limit === 'number' ? data.limit : undefined);
@@ -860,9 +861,19 @@ export function useWindowCallbacks(options: UseWindowCallbacksOptions): void {
           // 百分比限制在 0-100 之间
           const safePercentage = Math.max(0, Math.min(100, data.percentage));
 
+          console.log('[Frontend][Usage] normalized', {
+            provider: currentProviderRef.current,
+            used,
+            max,
+            percentage: data.percentage,
+            safePercentage,
+          });
+
           setUsagePercentage(safePercentage);
           setUsageUsedTokens(used);
           setUsageMaxTokens(max);
+        } else {
+          console.warn('[Frontend][Usage] skipped update without numeric percentage', data);
         }
       } catch (error) {
         console.error('[Frontend] Failed to parse usage update:', error);

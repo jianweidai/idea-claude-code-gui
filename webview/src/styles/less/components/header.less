@@ -33,6 +33,74 @@
     flex-shrink: 0; /* Prevent buttons from shrinking */
 }
 
+.cursor-mode-badge-wrapper {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+.cursor-mode-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-secondary);
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.cursor-mode-badge:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent-secondary);
+}
+
+.cursor-mode-badge-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    min-width: 120px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-secondary);
+    border-radius: 8px;
+    padding: 6px;
+    display: none;
+    flex-direction: column;
+    gap: 4px;
+    z-index: 10002;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+}
+
+.cursor-mode-badge-wrapper.open .cursor-mode-badge-menu {
+    display: flex;
+}
+
+.cursor-mode-badge-item {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    text-align: left;
+    padding: 6px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.cursor-mode-badge-item:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.cursor-mode-badge-item.selected {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
 .new-chat-button {
     background: var(--bg-tertiary);
     border: 1px solid var(--border-secondary);

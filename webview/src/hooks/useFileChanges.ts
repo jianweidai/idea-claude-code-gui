@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import type { ClaudeMessage, ClaudeContentBlock, ToolResultBlock } from '../types';
 import type { FileChangeSummary, EditOperation, FileChangeStatus } from '../types/fileChanges';
 import { getFileName } from '../utils/helpers';
-import { FILE_MODIFY_TOOL_NAMES, isToolName } from '../utils/toolConstants';
+import { FILE_MODIFY_TOOL_NAMES, hasEditLikeInput, isToolName } from '../utils/toolConstants';
 
 /** Write tool names that indicate a new file */
 const WRITE_TOOL_NAMES = new Set(['write', 'create_file']);
@@ -18,6 +18,7 @@ const LCS_MAX_LINES = 100;
 /** Cache for diff calculations to avoid redundant computations */
 const diffCache = new Map<string, { additions: number; deletions: number }>();
 const DIFF_CACHE_MAX_SIZE = 100;
+const DEBUG_FILE_CHANGES = true;
 
 /**
  * Generate cache key from strings (using hash-like approach for large strings)
@@ -130,6 +131,15 @@ function extractFilePath(input: Record<string, unknown>): string | null {
     (input.file_path as string | undefined) ??
     (input.filePath as string | undefined) ??
     (input.path as string | undefined) ??
+    (input.file as string | undefined) ??
+    (input.fileName as string | undefined) ??
+    (input.filename as string | undefined) ??
+    (input.absolute_path as string | undefined) ??
+    (input.absolutePath as string | undefined) ??
+    (input.relative_workspace_path as string | undefined) ??
+    (input.relativeWorkspacePath as string | undefined) ??
+    (input.workspace_path as string | undefined) ??
+    (input.workspacePath as string | undefined) ??
     (input.target_file as string | undefined) ??
     (input.targetFile as string | undefined) ??
     (input.notebook_path as string | undefined) ??
@@ -137,22 +147,147 @@ function extractFilePath(input: Record<string, unknown>): string | null {
   );
 }
 
+function pickString(input: Record<string, unknown>, keys: string[]): string {
+  for (const key of keys) {
+    const value = input[key];
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value)) {
+      const joined = value
+        .map((item) => (typeof item === 'string' ? item : ''))
+        .filter(Boolean)
+        .join('\n');
+      if (joined) return joined;
+    }
+    if (value && typeof value === 'object') {
+      try {
+        const maybeText = (value as Record<string, unknown>).text;
+        if (typeof maybeText === 'string' && maybeText) return maybeText;
+        const maybeContent = (value as Record<string, unknown>).content;
+        if (typeof maybeContent === 'string' && maybeContent) return maybeContent;
+        const json = JSON.stringify(value);
+        if (json && json !== '{}' && json !== '[]') return json;
+      } catch {
+      }
+    }
+  }
+  return '';
+}
+
+interface StructuredEdit {
+  filePath?: string;
+  oldString: string;
+  newString: string;
+  replaceAll?: boolean;
+  originalContent?: string;
+}
+
+function parseStructuredEdit(entry: unknown): StructuredEdit | null {
+  if (!entry || typeof entry !== 'object') return null;
+  const edit = entry as Record<string, unknown>;
+  const nestedInput =
+    (edit.input && typeof edit.input === 'object' ? (edit.input as Record<string, unknown>) : undefined) ??
+    (edit.args && typeof edit.args === 'object' ? (edit.args as Record<string, unknown>) : undefined);
+  const source = nestedInput ?? edit;
+
+  const filePath = extractFilePath(source) ?? extractFilePath(edit);
+  const oldString = pickString(source, [
+    'old_string',
+    'oldString',
+    'old_text',
+    'oldText',
+    'search',
+    'search_text',
+    'searchText',
+    'find',
+    'find_text',
+    'findText',
+    'from',
+  ]);
+  const newString = pickString(source, [
+    'new_string',
+    'newString',
+    'new_text',
+    'newText',
+    'replacement',
+    'replace',
+    'replace_with',
+    'replaceWith',
+    'to',
+    'content',
+  ]);
+  const replaceAll =
+    (source.replace_all as boolean | undefined) ??
+    (source.replaceAll as boolean | undefined);
+  const originalContent = pickString(source, [
+    'originalContent',
+    'original_content',
+    'original_content_snapshot',
+    'originalSnapshot',
+  ]);
+
+  if (!oldString && !newString && !filePath) {
+    return null;
+  }
+  return { filePath: filePath ?? undefined, oldString, newString, replaceAll, originalContent };
+}
+
+function extractStructuredEdits(input: Record<string, unknown>): StructuredEdit[] {
+  const candidates: unknown[] = [];
+  const edits = input.edits;
+  if (Array.isArray(edits)) candidates.push(...edits);
+  const operations = input.operations;
+  if (Array.isArray(operations)) candidates.push(...operations);
+  const changes = input.changes;
+  if (Array.isArray(changes)) candidates.push(...changes);
+
+  const parsed: StructuredEdit[] = [];
+  for (const candidate of candidates) {
+    const normalized = parseStructuredEdit(candidate);
+    if (normalized) parsed.push(normalized);
+  }
+  return parsed;
+}
+
 /**
  * Extract old and new strings from tool input
  */
-function extractStrings(input: Record<string, unknown>): { oldString: string; newString: string; replaceAll?: boolean } {
-  const oldString =
-    (input.old_string as string | undefined) ??
-    (input.oldString as string | undefined) ??
-    '';
-  const newString =
-    (input.new_string as string | undefined) ??
-    (input.newString as string | undefined) ??
-    (input.content as string | undefined) ?? // Write tool uses 'content'
-    '';
+function extractStrings(input: Record<string, unknown>): { oldString: string; newString: string; replaceAll?: boolean; originalContent?: string } {
+  const oldString = pickString(input, [
+    'old_string',
+    'oldString',
+    'old_text',
+    'oldText',
+    'search',
+    'search_text',
+    'searchText',
+    'find',
+    'find_text',
+    'findText',
+    'from',
+  ]);
+  const newString = pickString(input, [
+    'new_string',
+    'newString',
+    'new_text',
+    'newText',
+    'replacement',
+    'replace',
+    'replace_with',
+    'replaceWith',
+    'to',
+    'content', // Write tool uses 'content'
+    'stream_content',
+    'streamContent',
+  ]);
   const replaceAll = input.replace_all as boolean | undefined ?? input.replaceAll as boolean | undefined;
+  const originalContent = pickString(input, [
+    'originalContent',
+    'original_content',
+    'original_content_snapshot',
+    'originalSnapshot',
+  ]);
 
-  return { oldString, newString, replaceAll };
+  return { oldString, newString, replaceAll, originalContent };
 }
 
 /**
@@ -198,8 +333,15 @@ export function useFileChanges({
   startFromIndex = 0,
 }: UseFileChangesParams): FileChangeSummary[] {
   return useMemo(() => {
+    let toolUseBlockCount = 0;
+    let recognizedFileToolCount = 0;
+    let successfulFileToolCount = 0;
+    let structuredEditCount = 0;
+    const toolNameStats = new Map<string, number>();
+
     // Map to collect operations by file path
     const fileOperationsMap = new Map<string, EditOperation[]>();
+    const fileOriginalContentMap = new Map<string, string>();
 
     // Iterate through messages starting from startFromIndex
     messages.forEach((message, messageIndex) => {
@@ -212,28 +354,63 @@ export function useFileChanges({
 
       blocks.forEach((block) => {
         if (block.type !== 'tool_use') return;
+        toolUseBlockCount += 1;
 
         const toolName = block.name?.toLowerCase() ?? '';
+        toolNameStats.set(toolName || '(empty)', (toolNameStats.get(toolName || '(empty)') ?? 0) + 1);
 
         // Check if this is a file modification tool
-        if (!isToolName(toolName, FILE_MODIFY_TOOL_NAMES)) return;
-
         const input = block.input as Record<string, unknown> | undefined;
-        if (!input) return;
+        const isFileModifyTool = isToolName(toolName, FILE_MODIFY_TOOL_NAMES) || hasEditLikeInput(input);
+        if (!isFileModifyTool) return;
+        recognizedFileToolCount += 1;
 
-        const filePath = extractFilePath(input);
-        if (!filePath) return;
+        if (!input) return;
 
         // Check if operation completed successfully
         const result = findToolResult(block.id, messageIndex);
         if (!isSuccessfulResult(result)) return;
+        successfulFileToolCount += 1;
 
-        const { oldString, newString, replaceAll } = extractStrings(input);
-        const { additions, deletions } = computeDiffStats(oldString, newString);
+        const filePath = extractFilePath(input);
+        const structuredEdits = extractStructuredEdits(input);
+        if (structuredEdits.length > 0) {
+          structuredEditCount += structuredEdits.length;
+          structuredEdits.forEach((edit) => {
+            const targetPath = edit.filePath ?? filePath;
+            if (!targetPath) return;
+            const { additions, deletions } = computeDiffStats(edit.oldString, edit.newString);
+            const operation: EditOperation = {
+              toolName,
+              oldString: edit.oldString,
+              newString: edit.newString,
+              additions,
+              deletions,
+              replaceAll: edit.replaceAll,
+            };
+            const existing = fileOperationsMap.get(targetPath) ?? [];
+            existing.push(operation);
+            fileOperationsMap.set(targetPath, existing);
+            if (edit.originalContent && !fileOriginalContentMap.has(targetPath)) {
+              fileOriginalContentMap.set(targetPath, edit.originalContent);
+            }
+          });
+          return;
+        }
+
+        if (!filePath) return;
+
+        const { oldString, newString, replaceAll, originalContent } = extractStrings(input);
+        const existing = fileOperationsMap.get(filePath) ?? [];
+        const derivedOldString =
+          !oldString && newString && existing.length > 0
+            ? (existing[existing.length - 1].newString ?? '')
+            : oldString;
+        const { additions, deletions } = computeDiffStats(derivedOldString, newString);
 
         const operation: EditOperation = {
           toolName,
-          oldString,
+          oldString: derivedOldString,
           newString,
           additions,
           deletions,
@@ -241,9 +418,11 @@ export function useFileChanges({
         };
 
         // Group by file path
-        const existing = fileOperationsMap.get(filePath) ?? [];
         existing.push(operation);
         fileOperationsMap.set(filePath, existing);
+        if (originalContent && !fileOriginalContentMap.has(filePath)) {
+          fileOriginalContentMap.set(filePath, originalContent);
+        }
       });
     });
 
@@ -263,6 +442,7 @@ export function useFileChanges({
         filePath: String(filePath || ''),
         fileName: String(getFileName(filePath) || filePath || 'unknown'),
         status,
+        originalContent: fileOriginalContentMap.get(filePath),
         additions: totalAdditions,
         deletions: totalDeletions,
         operations,
@@ -276,6 +456,24 @@ export function useFileChanges({
       }
       return a.filePath.localeCompare(b.filePath);
     });
+
+    if (DEBUG_FILE_CHANGES) {
+      console.log('[FileChanges] summary', {
+        messages: messages.length,
+        startFromIndex,
+        toolUseBlockCount,
+        recognizedFileToolCount,
+        successfulFileToolCount,
+        structuredEditCount,
+        toolNames: Array.from(toolNameStats.entries()),
+        files: summaries.map((s) => ({
+          filePath: s.filePath,
+          additions: s.additions,
+          deletions: s.deletions,
+          operations: s.operations.length,
+        })),
+      });
+    }
 
     return summaries;
   }, [messages, getContentBlocks, findToolResult, startFromIndex]);

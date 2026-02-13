@@ -59,6 +59,35 @@ const MESSAGE_MERGE_CACHE_LIMIT = 3000;
 export type LocalizeMessageFn = (text: string) => string;
 
 /**
+ * Coalesce adjacent text blocks to avoid fragmented rendering caused by
+ * provider-side streaming chunks delivered as many tiny text blocks.
+ */
+function coalesceAdjacentTextBlocks(blocks: ClaudeContentBlock[]): ClaudeContentBlock[] {
+  const merged: ClaudeContentBlock[] = [];
+
+  for (const block of blocks) {
+    if (block.type !== 'text') {
+      merged.push(block);
+      continue;
+    }
+
+    const text = typeof block.text === 'string' ? block.text : '';
+    const last = merged[merged.length - 1];
+    if (last?.type === 'text') {
+      const lastText = typeof last.text === 'string' ? last.text : '';
+      merged[merged.length - 1] = {
+        ...last,
+        text: `${lastText}${text}`,
+      };
+    } else {
+      merged.push(block);
+    }
+  }
+
+  return merged;
+}
+
+/**
  * Normalize raw message content into content blocks
  */
 export function normalizeBlocks(
@@ -145,7 +174,7 @@ export function normalizeBlocks(
         });
       }
     });
-    return blocks;
+    return coalesceAdjacentTextBlocks(blocks);
   };
 
   const pickContent = (content: unknown): ClaudeContentBlock[] | null => {
@@ -409,11 +438,13 @@ export function mergeConsecutiveAssistantMessages(
       message: rawBase.message ? { ...rawBase.message, content: combinedBlocks } : rawBase.message,
     };
 
-    const mergedContent = contentParts.join('\n');
+    // Do not force line breaks between fragments; many Cursor stream chunks are
+    // partial tokens and should be concatenated as continuous text.
+    const mergedContent = contentParts.join('');
 
     return {
       ...first,
-      content: mergedContent,
+      content: mergedContent || first.content || '',
       raw: nextRaw,
     };
   };
@@ -457,6 +488,20 @@ export function mergeConsecutiveAssistantMessages(
     }
 
     const merged = buildMergedAssistantMessage(group);
+    // Ensure adjacent text fragments across merged assistant messages are also coalesced.
+    if (merged.raw && typeof merged.raw === 'object') {
+      const rawObj = merged.raw as ClaudeRawMessage;
+      const blocks = normalizeBlocksFn(rawObj);
+      if (blocks && blocks.length > 0) {
+        const compactBlocks = coalesceAdjacentTextBlocks(blocks);
+        const rawWithCompactBlocks: ClaudeRawMessage = {
+          ...rawObj,
+          content: compactBlocks,
+          message: rawObj.message ? { ...rawObj.message, content: compactBlocks } : rawObj.message,
+        };
+        merged.raw = rawWithCompactBlocks;
+      }
+    }
     if (cache) {
       cache.set(groupKey, { source: group, merged });
       if (cache.size > MESSAGE_MERGE_CACHE_LIMIT) {

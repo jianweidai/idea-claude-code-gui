@@ -35,7 +35,7 @@ const FileChangesList = memo(({
     }));
     // Use editable diff view for selective accept/reject of changes
     const status = fileChange.status === 'A' ? 'A' : 'M';
-    showEditableDiff(fileChange.filePath, operations, status);
+    showEditableDiff(fileChange.filePath, operations, status, fileChange.originalContent);
   }, []);
 
   if (fileChanges.length === 0) {

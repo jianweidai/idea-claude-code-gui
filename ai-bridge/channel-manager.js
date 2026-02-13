@@ -10,6 +10,7 @@
  * Provider:
  *   claude - Claude Agent SDK (@anthropic-ai/claude-agent-sdk)
  *   codex  - Codex SDK (@openai/codex-sdk)
+ *   cursor - Cursor CLI (cursor-agent)
  *
  * Commands:
  *   send                - 发送消息（参数通过 stdin JSON 传递）
@@ -26,6 +27,7 @@
 import { readStdinData } from './utils/stdin-utils.js';
 import { handleClaudeCommand } from './channels/claude-channel.js';
 import { handleCodexCommand } from './channels/codex-channel.js';
+import { handleCursorCommand } from './channels/cursor-channel.js';
 import { getSdkStatus, isClaudeSdkAvailable, isCodexSdkAvailable } from './utils/sdk-loader.js';
 
 // 🔧 诊断日志：启动信息
@@ -106,6 +108,7 @@ async function handleSystemCommand(command, args, stdinData) {
 const providerHandlers = {
   claude: handleClaudeCommand,
   codex: handleCodexCommand,
+  cursor: handleCursorCommand,
   system: handleSystemCommand
 };
 

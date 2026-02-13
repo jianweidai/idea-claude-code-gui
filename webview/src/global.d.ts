@@ -204,6 +204,26 @@ interface Window {
   codexMcpServerDeleted?: (json: string) => void;
 
   /**
+   * Update Cursor models list
+   */
+  updateCursorModels?: (json: string) => void;
+
+  /**
+   * Update Cursor MCP servers list
+   */
+  updateCursorMcpServers?: (json: string) => void;
+
+  /**
+   * Update Cursor MCP server connection status
+   */
+  updateCursorMcpServerStatus?: (json: string) => void;
+
+  /**
+   * Update Cursor MCP server tools list
+   */
+  updateCursorMcpServerTools?: (json: string) => void;
+
+  /**
    * Update providers list
    */
   updateProviders?: (json: string) => void;

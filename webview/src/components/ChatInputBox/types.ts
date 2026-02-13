@@ -302,6 +302,36 @@ export const CODEX_MODELS: ModelInfo[] = [
 ];
 
 /**
+ * Cursor model list
+ */
+export const CURSOR_MODELS: ModelInfo[] = [
+  { id: 'auto', label: 'Auto', description: 'Auto-select best model' },
+  { id: 'composer-1', label: 'Composer 1', description: 'Cursor Composer model' },
+  { id: 'gpt-5.2', label: 'GPT-5.2', description: 'Frontier model' },
+  { id: 'gpt-5.2-high', label: 'GPT-5.2 High', description: 'High reasoning depth' },
+  { id: 'gpt-5.2-codex', label: 'GPT-5.2 Codex', description: 'Agentic coding model' },
+  { id: 'gpt-5.2-codex-high', label: 'GPT-5.2 Codex High', description: 'High reasoning depth' },
+  { id: 'gpt-5.2-codex-low', label: 'GPT-5.2 Codex Low', description: 'Low reasoning depth' },
+  { id: 'gpt-5.2-codex-xhigh', label: 'GPT-5.2 Codex Extra High', description: 'Extra high reasoning depth' },
+  { id: 'gpt-5.2-codex-fast', label: 'GPT-5.2 Codex Fast', description: 'Faster responses' },
+  { id: 'gpt-5.2-codex-high-fast', label: 'GPT-5.2 Codex High Fast', description: 'Fast + high reasoning' },
+  { id: 'gpt-5.2-codex-low-fast', label: 'GPT-5.2 Codex Low Fast', description: 'Fast + low reasoning' },
+  { id: 'gpt-5.2-codex-xhigh-fast', label: 'GPT-5.2 Codex Extra High Fast', description: 'Fast + extra high reasoning' },
+  { id: 'gpt-5.1-codex-max', label: 'GPT-5.1 Codex Max', description: 'Max reasoning depth' },
+  { id: 'gpt-5.1-codex-max-high', label: 'GPT-5.1 Codex Max High', description: 'Max + high reasoning' },
+  { id: 'gpt-5.1-high', label: 'GPT-5.1 High', description: 'High reasoning depth' },
+  { id: 'opus-4.6', label: 'Claude 4.6 Opus', description: 'Claude Opus' },
+  { id: 'opus-4.6-thinking', label: 'Claude 4.6 Opus (Thinking)', description: 'Claude Opus with thinking' },
+  { id: 'opus-4.5', label: 'Claude 4.5 Opus', description: 'Claude Opus' },
+  { id: 'opus-4.5-thinking', label: 'Claude 4.5 Opus (Thinking)', description: 'Claude Opus with thinking' },
+  { id: 'sonnet-4.5', label: 'Claude 4.5 Sonnet', description: 'Claude Sonnet' },
+  { id: 'sonnet-4.5-thinking', label: 'Claude 4.5 Sonnet (Thinking)', description: 'Claude Sonnet with thinking' },
+  { id: 'gemini-3-pro', label: 'Gemini 3 Pro', description: 'Gemini Pro' },
+  { id: 'gemini-3-flash', label: 'Gemini 3 Flash', description: 'Gemini Flash' },
+  { id: 'grok', label: 'Grok', description: 'Grok' },
+];
+
+/**
  * Available models (backward compatibility)
  */
 export const AVAILABLE_MODELS = CLAUDE_MODELS;
@@ -322,6 +352,7 @@ export interface ProviderInfo {
 export const AVAILABLE_PROVIDERS: ProviderInfo[] = [
   { id: 'claude', label: 'Claude Code', icon: 'codicon-terminal', enabled: true },
   { id: 'codex', label: 'Codex Cli', icon: 'codicon-terminal', enabled: true },
+  { id: 'cursor', label: 'Cursor CLI', icon: 'codicon-terminal', enabled: true },
   { id: 'gemini', label: 'Gemini Cli', icon: 'codicon-terminal', enabled: false },
   { id: 'opencode', label: 'OpenCode', icon: 'codicon-terminal', enabled: false },
 ];
@@ -370,6 +401,41 @@ export const REASONING_LEVELS: ReasoningInfo[] = [
     label: 'Max',
     icon: 'codicon-flame',
     description: 'Maximum reasoning depth',
+  },
+];
+
+/**
+ * Cursor execution mode
+ */
+export type CursorMode = 'default' | 'plan' | 'ask';
+
+/**
+ * Cursor mode information
+ */
+export interface CursorModeInfo {
+  id: CursorMode;
+  label: string;
+  description?: string;
+}
+
+/**
+ * Available Cursor modes
+ */
+export const CURSOR_MODES: CursorModeInfo[] = [
+  {
+    id: 'default',
+    label: '默认',
+    description: '正常执行模式',
+  },
+  {
+    id: 'plan',
+    label: '规划',
+    description: '只做规划，不执行改动',
+  },
+  {
+    id: 'ask',
+    label: '问答',
+    description: '只回答问题，不执行改动',
   },
 ];
 
@@ -478,6 +544,12 @@ export interface ChatInputBoxProps {
   reasoningEffort?: ReasoningEffort;
   /** Switch reasoning effort callback (Codex only) */
   onReasoningChange?: (effort: ReasoningEffort) => void;
+  /** Cursor execution mode */
+  cursorMode?: CursorMode;
+  /** Switch Cursor mode callback */
+  onCursorModeChange?: (mode: CursorMode) => void;
+  /** Cursor model list (dynamic) */
+  cursorModels?: ModelInfo[];
   /** Toggle thinking mode */
   onToggleThinking?: (enabled: boolean) => void;
   /** Whether streaming is enabled */
@@ -542,6 +614,10 @@ export interface ButtonAreaProps {
   currentProvider?: string;
   /** Current reasoning effort (Codex only) */
   reasoningEffort?: ReasoningEffort;
+  /** Cursor execution mode */
+  cursorMode?: CursorMode;
+  /** Cursor model list (dynamic) */
+  cursorModels?: ModelInfo[];
 
   // Event callbacks
   onSubmit?: () => void;
@@ -551,6 +627,8 @@ export interface ButtonAreaProps {
   onProviderSelect?: (providerId: string) => void;
   /** Switch reasoning effort callback (Codex only) */
   onReasoningChange?: (effort: ReasoningEffort) => void;
+  /** Switch Cursor mode callback */
+  onCursorModeChange?: (mode: CursorMode) => void;
   /** Enhance prompt callback */
   onEnhancePrompt?: () => void;
   /** Whether always thinking enabled */

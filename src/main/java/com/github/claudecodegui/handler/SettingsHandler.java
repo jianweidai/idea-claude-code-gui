@@ -65,7 +65,9 @@ public class SettingsHandler extends BaseMessageHandler {
         "get_input_history",
         "record_input_history",
         "delete_input_history_item",
-        "clear_input_history"
+        "clear_input_history",
+        "set_cursor_mode",
+        "get_cursor_models"
     };
 
     private static final Map<String, Integer> MODEL_CONTEXT_LIMITS = new HashMap<>();
@@ -76,11 +78,32 @@ public class SettingsHandler extends BaseMessageHandler {
         MODEL_CONTEXT_LIMITS.put("claude-haiku-4-5", 200_000);
         // Codex/OpenAI 模型
         MODEL_CONTEXT_LIMITS.put("gpt-5.2-codex", 258_000);
+        MODEL_CONTEXT_LIMITS.put("gpt-5.2-codex-high", 258_000);
+        MODEL_CONTEXT_LIMITS.put("gpt-5.2-codex-low", 258_000);
+        MODEL_CONTEXT_LIMITS.put("gpt-5.2-codex-xhigh", 258_000);
+        MODEL_CONTEXT_LIMITS.put("gpt-5.2-codex-fast", 258_000);
+        MODEL_CONTEXT_LIMITS.put("gpt-5.2-codex-high-fast", 258_000);
+        MODEL_CONTEXT_LIMITS.put("gpt-5.2-codex-low-fast", 258_000);
+        MODEL_CONTEXT_LIMITS.put("gpt-5.2-codex-xhigh-fast", 258_000);
+        MODEL_CONTEXT_LIMITS.put("gpt-5.3-codex", 258_000);
+        MODEL_CONTEXT_LIMITS.put("gpt-5.3", 258_000);
         MODEL_CONTEXT_LIMITS.put("gpt-5.1-codex-max", 258_000);
+        MODEL_CONTEXT_LIMITS.put("gpt-5.1-codex-max-high", 258_000);
         MODEL_CONTEXT_LIMITS.put("gpt-5.1-codex-mini", 258_000);
         MODEL_CONTEXT_LIMITS.put("gpt-5.2", 258_000);
+        MODEL_CONTEXT_LIMITS.put("gpt-5.2-high", 258_000);
         MODEL_CONTEXT_LIMITS.put("gpt-5.1", 128_000);
+        MODEL_CONTEXT_LIMITS.put("gpt-5.1-high", 128_000);
         MODEL_CONTEXT_LIMITS.put("gpt-5.1-codex", 128_000);
+        MODEL_CONTEXT_LIMITS.put("opus-4.6", 200_000);
+        MODEL_CONTEXT_LIMITS.put("opus-4.6-thinking", 200_000);
+        MODEL_CONTEXT_LIMITS.put("opus-4.5", 200_000);
+        MODEL_CONTEXT_LIMITS.put("opus-4.5-thinking", 200_000);
+        MODEL_CONTEXT_LIMITS.put("sonnet-4.5", 200_000);
+        MODEL_CONTEXT_LIMITS.put("sonnet-4.5-thinking", 200_000);
+        MODEL_CONTEXT_LIMITS.put("gemini-3-pro", 200_000);
+        MODEL_CONTEXT_LIMITS.put("gemini-3-flash", 200_000);
+        MODEL_CONTEXT_LIMITS.put("grok", 200_000);
         MODEL_CONTEXT_LIMITS.put("gpt-4o", 128_000);
         MODEL_CONTEXT_LIMITS.put("gpt-4o-mini", 128_000);
         MODEL_CONTEXT_LIMITS.put("gpt-4-turbo", 128_000);
@@ -132,6 +155,12 @@ public class SettingsHandler extends BaseMessageHandler {
                 return true;
             case "set_reasoning_effort":
                 handleSetReasoningEffort(content);
+                return true;
+            case "set_cursor_mode":
+                handleSetCursorMode(content);
+                return true;
+            case "get_cursor_models":
+                handleGetCursorModels();
                 return true;
             case "get_node_path":
                 handleGetNodePath();
@@ -389,7 +418,7 @@ public class SettingsHandler extends BaseMessageHandler {
             // Claude: input_tokens 不包含缓存，需要加上 cache_creation（缓存读取不占用新的上下文窗口）
             String currentProvider = context.getCurrentProvider();
             int usedTokens;
-            if ("codex".equals(currentProvider)) {
+            if ("codex".equals(currentProvider) || "cursor".equals(currentProvider)) {
                 usedTokens = inputTokens + outputTokens;
             } else {
                 // Claude: 缓存读取不占用新的上下文窗口，不计入 cacheReadTokens
@@ -408,7 +437,7 @@ public class SettingsHandler extends BaseMessageHandler {
      * 发送 usage 更新到前端
      */
     private void sendUsageUpdate(int usedTokens, int maxTokens) {
-        int percentage = Math.min(100, maxTokens > 0 ? (int) ((usedTokens * 100.0) / maxTokens) : 0);
+        double percentage = Math.min(100.0, maxTokens > 0 ? (usedTokens * 100.0) / maxTokens : 0.0);
 
         LOG.info("[SettingsHandler] Sending usage update: usedTokens=" + usedTokens + ", maxTokens=" + maxTokens + ", percentage=" + percentage + "%");
 
@@ -456,10 +485,27 @@ public class SettingsHandler extends BaseMessageHandler {
             }
 
             LOG.info("[SettingsHandler] Setting provider to: " + provider);
+            String previousProvider = context.getCurrentProvider();
+            boolean providerChanged = previousProvider == null
+                    ? provider != null
+                    : !previousProvider.equals(provider);
+
             context.setCurrentProvider(provider);
 
             if (context.getSession() != null) {
                 context.getSession().setProvider(provider);
+                if (providerChanged) {
+                    // Provider 切换时清空会话 ID，避免错误复用上一个 provider 的会话/线程。
+                    String currentCwd = context.getSession().getCwd();
+                    context.getSession().setSessionInfo(null, currentCwd);
+                    LOG.info("[SettingsHandler] Provider changed from " + previousProvider + " to " + provider + ", sessionId reset");
+                }
+            }
+
+            if (providerChanged) {
+                // 切 provider 后先重置 usage，避免沿用旧 provider 的上下文百分比。
+                int maxTokens = getModelContextLimit(context.getCurrentModel());
+                sendUsageUpdate(0, maxTokens);
             }
 
             refreshContextBar();
@@ -557,6 +603,57 @@ public class SettingsHandler extends BaseMessageHandler {
     }
 
     /**
+     * 处理设置 Cursor 模式请求
+     */
+    private void handleSetCursorMode(String content) {
+        try {
+            String mode = content;
+            if (content != null && !content.isEmpty()) {
+                try {
+                    Gson gson = new Gson();
+                    JsonObject json = gson.fromJson(content, JsonObject.class);
+                    if (json.has("cursorMode")) {
+                        mode = json.get("cursorMode").getAsString();
+                    } else if (json.has("mode")) {
+                        mode = json.get("mode").getAsString();
+                    }
+                } catch (Exception e) {
+                    // content 本身就是 mode
+                }
+            }
+
+            LOG.info("[SettingsHandler] Setting cursor mode to: " + mode);
+
+            if (context.getSession() != null) {
+                context.getSession().setCursorMode(mode);
+            }
+        } catch (Exception e) {
+            LOG.error("[SettingsHandler] Failed to set cursor mode: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 获取 Cursor 模型列表
+     */
+    private void handleGetCursorModels() {
+        try {
+            JsonObject result = context.getCursorSDKBridge().getAvailableModels();
+            if (result == null || !result.has("success") || !result.get("success").getAsBoolean()) {
+                String error = result != null && result.has("error") ? result.get("error").getAsString() : "Unknown error";
+                LOG.warn("[SettingsHandler] Failed to get Cursor models: " + error);
+                return;
+            }
+
+            String json = new Gson().toJson(result);
+            ApplicationManager.getApplication().invokeLater(() -> {
+                callJavaScript("window.updateCursorModels", escapeJs(json));
+            });
+        } catch (Exception e) {
+            LOG.error("[SettingsHandler] Failed to get Cursor models: " + e.getMessage(), e);
+        }
+    }
+
+    /**
      * 获取 Node.js 路径和版本信息.
      */
     private void handleGetNodePath() {
@@ -581,6 +678,7 @@ public class SettingsHandler extends BaseMessageHandler {
                     // 使用 verifyAndCacheNodePath 而不是 setNodeExecutable，确保版本信息被缓存
                     context.getClaudeSDKBridge().verifyAndCacheNodePath(pathToSend);
                     context.getCodexSDKBridge().setNodeExecutable(pathToSend);
+                    context.getCursorSDKBridge().setNodeExecutable(pathToSend);
                 }
             }
 
@@ -627,6 +725,7 @@ public class SettingsHandler extends BaseMessageHandler {
                 props.unsetValue(NODE_PATH_PROPERTY_KEY);
                 context.getClaudeSDKBridge().setNodeExecutable(null);
                 context.getCodexSDKBridge().setNodeExecutable(null);
+                context.getCursorSDKBridge().setNodeExecutable(null);
                 LOG.info("[SettingsHandler] Cleared manual Node.js path from settings");
 
                 NodeDetectionResult detected = context.getClaudeSDKBridge().detectNodeWithDetails();
@@ -637,12 +736,14 @@ public class SettingsHandler extends BaseMessageHandler {
                     // 使用 verifyAndCacheNodePath 确保版本信息被缓存
                     context.getClaudeSDKBridge().verifyAndCacheNodePath(finalPath);
                     context.getCodexSDKBridge().setNodeExecutable(finalPath);
+                    context.getCursorSDKBridge().setNodeExecutable(finalPath);
                     verifySuccess = true;
                 }
             } else {
                 props.setValue(NODE_PATH_PROPERTY_KEY, path);
                 NodeDetectionResult result = context.getClaudeSDKBridge().verifyAndCacheNodePath(path);
                 context.getCodexSDKBridge().setNodeExecutable(path);
+                context.getCursorSDKBridge().setNodeExecutable(path);
                 LOG.info("[SettingsHandler] Updated manual Node.js path from settings: " + path);
                 finalPath = path;
                 if (result != null && result.isFound()) {

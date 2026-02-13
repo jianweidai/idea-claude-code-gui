@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Claude, OpenAI, Gemini } from '@lobehub/icons';
 import { AVAILABLE_MODELS } from '../types';
 import type { ModelInfo } from '../types';
 import { STORAGE_KEYS } from '../../../types/provider';
+import { ProviderIcon } from '../../ProviderIcon';
 
 interface ModelSelectProps {
   value: string;
@@ -75,21 +75,6 @@ const getModelMapping = (): Record<string, string> => {
     // ignore parse errors
   }
   return {};
-};
-
-/**
- * 模型图标组件 - 根据提供商类型显示不同图标
- */
-const ModelIcon = ({ provider, size = 16 }: { provider?: string; size?: number }) => {
-  switch (provider) {
-    case 'codex':
-      return <OpenAI.Avatar size={size} />;
-    case 'gemini':
-      return <Gemini.Color size={size} />;
-    case 'claude':
-    default:
-      return <Claude.Color size={size} />;
-  }
 };
 
 /**
@@ -195,7 +180,7 @@ export const ModelSelect = ({ value, onChange, models = AVAILABLE_MODELS, curren
         onClick={handleToggle}
         title={t('chat.currentModel', { model: getModelLabel(currentModel) })}
       >
-        <ModelIcon provider={currentProvider} size={12} />
+        <ProviderIcon providerId={currentProvider} size={12} colored={true} />
         <span className="selector-button-text">{getModelLabel(currentModel)}</span>
         <span className={`codicon codicon-chevron-${isOpen ? 'up' : 'down'}`} style={{ fontSize: '10px', marginLeft: '2px' }} />
       </button>
@@ -203,7 +188,7 @@ export const ModelSelect = ({ value, onChange, models = AVAILABLE_MODELS, curren
       {isOpen && (
         <div
           ref={dropdownRef}
-          className="selector-dropdown"
+          className="selector-dropdown model-selector-dropdown"
           style={{
             position: 'absolute',
             bottom: '100%',
@@ -218,7 +203,7 @@ export const ModelSelect = ({ value, onChange, models = AVAILABLE_MODELS, curren
               className={`selector-option ${model.id === value ? 'selected' : ''}`}
               onClick={() => handleSelect(model.id)}
             >
-              <ModelIcon provider={currentProvider} size={16} />
+              <ProviderIcon providerId={currentProvider} size={16} colored={true} />
               <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
                 <span>{getModelLabel(model)}</span>
                 {getModelDescription(model) && (

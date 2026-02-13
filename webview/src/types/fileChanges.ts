@@ -20,6 +20,8 @@ export interface FileChangeSummary {
   filePath: string;
   fileName: string;
   status: FileChangeStatus;
+  /** 可选：工具调用开始前的文件快照 */
+  originalContent?: string;
   /** Total additions (sum of all operations) */
   additions: number;
   /** Total deletions (sum of all operations) */

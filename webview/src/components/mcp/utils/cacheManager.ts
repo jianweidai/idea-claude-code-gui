@@ -31,7 +31,7 @@ const MAX_CACHED_SERVERS = 50;
  * @param provider - 提供商类型
  * @returns 缓存键名集合
  */
-export function getCacheKeys(provider: 'claude' | 'codex'): CacheKeys {
+export function getCacheKeys(provider: 'claude' | 'codex' | 'cursor'): CacheKeys {
   return {
     SERVERS: `mcp_servers_cache_${provider}`,
     STATUS: `mcp_status_cache_${provider}`,

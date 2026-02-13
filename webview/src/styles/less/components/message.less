@@ -70,6 +70,12 @@
 .message.assistant .message-content {
     max-width: 100%; /* 防止内容超出容器 */
     min-width: 0; /* 允许内容缩小 */
+    width: 100%;
+}
+
+.message.assistant .content-block,
+.message.assistant .markdown-content {
+    width: 100%;
 }
 
 .message.assistant .message-role-label {
@@ -432,7 +438,6 @@
 .markdown-content pre code {
     background-color: transparent;
     padding: 0;
-    color: var(--text-secondary);
 }
 
 /* User message code blocks - ensure they fit within bubble */

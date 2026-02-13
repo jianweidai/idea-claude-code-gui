@@ -86,7 +86,23 @@
     "attachmentFile": "[Attachment: {{fileName}}]",
     "unknownFile": "Unknown file",
     "attachmentsUploaded": "[Attachments Uploaded]",
-    "streamingConnected": "Claude connected, understanding your question"
+    "streamingConnected": "Claude connected, understanding your question",
+    "cursorModeCommandDefault": "Switch to default mode",
+    "cursorModeCommandPlan": "Switch to plan mode (plan only, no edits)",
+    "cursorModeCommandAsk": "Switch to Q&A mode (answer only)",
+    "cursorModeCommandOnlyCursor": "Only available in Cursor mode",
+    "cursorModeCommandHint": "Current mode: {{mode}} (use /cursor default|plan|ask)",
+    "cursorModeCommandSwitched": "Switched to {{mode}} mode",
+    "cursorModeLabelDefault": "Default",
+    "cursorModeLabelPlan": "Plan",
+    "cursorModeLabelAsk": "Q&A",
+    "cursorModeBadgeTitle": "Cursor mode",
+    "cursorModeBadgePrefix": "Cursor",
+    "cursorModeBadge": {
+      "default": "Default",
+      "plan": "Plan",
+      "ask": "Q&A"
+    }
   },
   "settings": {
     "title": "Settings",

@@ -82,7 +82,23 @@
     "clearCommandDescription": "会話履歴をクリアして新しいセッションを開始",
     "attachmentFile": "[添付ファイル: {{fileName}}]",
     "attachmentsUploaded": "[添付ファイルがアップロードされました]",
-    "streamingConnected": "Claudeに接続しました、質問を理解しています"
+    "streamingConnected": "Claudeに接続しました、質問を理解しています",
+    "cursorModeCommandDefault": "デフォルトモードに切り替え",
+    "cursorModeCommandPlan": "プランモードに切り替え（計画のみ）",
+    "cursorModeCommandAsk": "Q&Aモードに切り替え（回答のみ）",
+    "cursorModeCommandOnlyCursor": "Cursor モードでのみ利用可能",
+    "cursorModeCommandHint": "現在のモード：{{mode}}（/cursor default|plan|ask）",
+    "cursorModeCommandSwitched": "{{mode}}モードに切り替えました",
+    "cursorModeLabelDefault": "デフォルト",
+    "cursorModeLabelPlan": "プラン",
+    "cursorModeLabelAsk": "Q&A",
+    "cursorModeBadgeTitle": "Cursor 実行モード",
+    "cursorModeBadgePrefix": "Cursor",
+    "cursorModeBadge": {
+      "default": "デフォルト",
+      "plan": "プラン",
+      "ask": "Q&A"
+    }
   },
   "settings": {
     "title": "設定",

@@ -2,10 +2,11 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ToolInput, ToolResultBlock } from '../../types';
 import { useIsToolDenied } from '../../hooks/useIsToolDenied';
-import { openFile, showDiff, refreshFile } from '../../utils/bridge';
+import { openFile, showDiff, showEditFullDiff, showMultiEditDiff, refreshFile } from '../../utils/bridge';
 import { getFileName } from '../../utils/helpers';
 import { getFileIcon } from '../../utils/fileIcons';
 import GenericToolBlock from './GenericToolBlock';
+const DEBUG_EDIT_TOOL_BLOCK = true;
 
 interface EditToolBlockProps {
   name?: string;
@@ -26,6 +27,109 @@ interface DiffResult {
   lines: DiffLine[];
   additions: number;
   deletions: number;
+}
+
+interface ParsedEditOperation {
+  oldString: string;
+  newString: string;
+  replaceAll?: boolean;
+}
+
+function pickString(input: Record<string, unknown>, keys: string[]): string {
+  for (const key of keys) {
+    const value = input[key];
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value)) {
+      const joined = value
+        .map((item) => (typeof item === 'string' ? item : ''))
+        .filter(Boolean)
+        .join('\n');
+      if (joined) return joined;
+    }
+    if (value && typeof value === 'object') {
+      try {
+        const maybeText = (value as Record<string, unknown>).text;
+        if (typeof maybeText === 'string' && maybeText) return maybeText;
+        const maybeContent = (value as Record<string, unknown>).content;
+        if (typeof maybeContent === 'string' && maybeContent) return maybeContent;
+        const json = JSON.stringify(value);
+        if (json && json !== '{}' && json !== '[]') return json;
+      } catch {
+      }
+    }
+  }
+  return '';
+}
+
+function extractFilePathFromInput(input: Record<string, unknown>): string | undefined {
+  return (
+    (input.file_path as string | undefined) ??
+    (input.filePath as string | undefined) ??
+    (input.path as string | undefined) ??
+    (input.file as string | undefined) ??
+    (input.fileName as string | undefined) ??
+    (input.filename as string | undefined) ??
+    (input.absolute_path as string | undefined) ??
+    (input.absolutePath as string | undefined) ??
+    (input.relative_workspace_path as string | undefined) ??
+    (input.relativeWorkspacePath as string | undefined) ??
+    (input.workspace_path as string | undefined) ??
+    (input.workspacePath as string | undefined) ??
+    (input.uri as string | undefined) ??
+    (input.target_file as string | undefined) ??
+    (input.targetFile as string | undefined)
+  );
+}
+
+function parseStructuredEdits(input: Record<string, unknown>): ParsedEditOperation[] {
+  const candidates: unknown[] = [];
+  if (Array.isArray(input.edits)) candidates.push(...input.edits);
+  if (Array.isArray(input.operations)) candidates.push(...input.operations);
+  if (Array.isArray(input.changes)) candidates.push(...input.changes);
+  if (Array.isArray(input.replacements)) candidates.push(...input.replacements);
+
+  const parsed: ParsedEditOperation[] = [];
+  candidates.forEach((entry) => {
+    if (!entry || typeof entry !== 'object') return;
+    const edit = entry as Record<string, unknown>;
+    const source =
+      (edit.input && typeof edit.input === 'object' ? (edit.input as Record<string, unknown>) : undefined) ??
+      (edit.args && typeof edit.args === 'object' ? (edit.args as Record<string, unknown>) : undefined) ??
+      edit;
+    const oldString = pickString(source, [
+      'old_string',
+      'oldString',
+      'old_text',
+      'oldText',
+      'search',
+      'search_text',
+      'searchText',
+      'find',
+      'find_text',
+      'findText',
+      'from',
+    ]);
+    const newString = pickString(source, [
+      'new_string',
+      'newString',
+      'new_text',
+      'newText',
+      'replacement',
+      'replace',
+      'replace_with',
+      'replaceWith',
+      'to',
+      'content',
+      'stream_content',
+      'streamContent',
+    ]);
+    const replaceAll =
+      (source.replace_all as boolean | undefined) ??
+      (source.replaceAll as boolean | undefined);
+    if (!oldString && !newString) return;
+    parsed.push({ oldString, newString, replaceAll });
+  });
+  return parsed;
 }
 
 // 使用 LCS 算法计算真正的 diff
@@ -91,6 +195,7 @@ function computeDiff(oldLines: string[], newLines: string[]): DiffResult {
 const EditToolBlock = ({ name, input, result, toolId }: EditToolBlockProps) => {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
+  const inputRecord = (input ?? {}) as Record<string, unknown>;
 
   const isDenied = useIsToolDenied(toolId);
 
@@ -100,21 +205,58 @@ const EditToolBlock = ({ name, input, result, toolId }: EditToolBlockProps) => {
   // 如果被拒绝，显示为错误状态
   const isError = isDenied || (isCompleted && result?.is_error === true);
 
+  const structuredEdits = parseStructuredEdits(inputRecord);
   const filePath =
-    (input?.file_path as string | undefined) ??
-    (input?.filePath as string | undefined) ??
-    (input?.path as string | undefined) ??
-    (input?.target_file as string | undefined) ??
-    (input?.targetFile as string | undefined);
+    extractFilePathFromInput(inputRecord) ??
+    (() => {
+      const edits = inputRecord.edits;
+      const first = Array.isArray(edits) ? edits[0] : undefined;
+      if (!first || typeof first !== 'object') return undefined;
+      const src = first as Record<string, unknown>;
+      const nested =
+        (src.input && typeof src.input === 'object' ? (src.input as Record<string, unknown>) : undefined) ??
+        (src.args && typeof src.args === 'object' ? (src.args as Record<string, unknown>) : undefined) ??
+        src;
+      return extractFilePathFromInput(nested);
+    })();
 
   const oldString =
-    (input?.old_string as string | undefined) ??
-    (input?.oldString as string | undefined) ??
-    '';
+    pickString(inputRecord, [
+      'old_string',
+      'oldString',
+      'old_text',
+      'oldText',
+      'search',
+      'search_text',
+      'searchText',
+      'find',
+      'find_text',
+      'findText',
+      'from',
+    ]) ||
+    (structuredEdits[0]?.oldString ?? '');
   const newString =
-    (input?.new_string as string | undefined) ??
-    (input?.newString as string | undefined) ??
-    '';
+    pickString(inputRecord, [
+      'new_string',
+      'newString',
+      'new_text',
+      'newText',
+      'replacement',
+      'replace',
+      'replace_with',
+      'replaceWith',
+      'to',
+      'content',
+      'stream_content',
+      'streamContent',
+    ]) ||
+    (structuredEdits[0]?.newString ?? '');
+  const originalContent = pickString(inputRecord, [
+    'originalContent',
+    'original_content',
+    'original_content_snapshot',
+    'originalSnapshot',
+  ]);
 
   const diff = useMemo(() => {
     const oldLines = oldString ? oldString.split('\n') : [];
@@ -131,11 +273,34 @@ const EditToolBlock = ({ name, input, result, toolId }: EditToolBlockProps) => {
     }
   }, [filePath, isCompleted, isError]);
 
+  useEffect(() => {
+    if (!DEBUG_EDIT_TOOL_BLOCK) return;
+    console.log('[EditToolBlock] parsed', {
+      name,
+      toolId,
+      filePath: filePath || '',
+      oldLength: oldString.length,
+      newLength: newString.length,
+      structuredEdits: structuredEdits.length,
+      hasResult: result !== undefined && result !== null,
+      resultError: result?.is_error === true,
+      inputKeys: Object.keys(inputRecord),
+    });
+  }, [name, toolId, filePath, oldString, newString, structuredEdits.length, result, inputRecord]);
+
   if (!input) {
     return null;
   }
 
-  if (!oldString && !newString) {
+  if (!oldString && !newString && structuredEdits.length === 0) {
+    if (DEBUG_EDIT_TOOL_BLOCK) {
+      console.warn('[EditToolBlock] fallback generic due to empty edit payload', {
+        name,
+        toolId,
+        filePath,
+        inputKeys: Object.keys(inputRecord),
+      });
+    }
     return <GenericToolBlock name={name} input={input} result={result} toolId={toolId} />;
   }
 
@@ -148,8 +313,36 @@ const EditToolBlock = ({ name, input, result, toolId }: EditToolBlockProps) => {
 
   const handleShowDiff = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (DEBUG_EDIT_TOOL_BLOCK) {
+      console.log('[EditToolBlock] showDiff click', {
+        name,
+        toolId,
+        filePath: filePath || '',
+        structuredEdits: structuredEdits.length,
+        oldLength: oldString.length,
+        newLength: newString.length,
+      });
+    }
     if (filePath) {
-      showDiff(filePath, oldString, newString, t('tools.editPrefix', { fileName: getFileName(filePath) }));
+      if (structuredEdits.length > 1) {
+        const edits = structuredEdits.map((op) => ({
+          oldString: op.oldString,
+          newString: op.newString,
+          replaceAll: op.replaceAll,
+        }));
+        showMultiEditDiff(filePath, edits);
+      } else if (originalContent) {
+        showEditFullDiff(
+          filePath,
+          oldString,
+          newString,
+          originalContent,
+          false,
+          t('tools.editPrefix', { fileName: getFileName(filePath) })
+        );
+      } else {
+        showDiff(filePath, oldString, newString, t('tools.editPrefix', { fileName: getFileName(filePath) }));
+      }
     }
   };
 

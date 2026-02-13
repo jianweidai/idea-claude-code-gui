@@ -82,7 +82,23 @@
     "clearCommandDescription": "बातचीत इतिहास साफ़ करें और नया सत्र शुरू करें",
     "attachmentFile": "[अटैचमेंट: {{fileName}}]",
     "attachmentsUploaded": "[अटैचमेंट अपलोड हो गए]",
-    "streamingConnected": "Claude कनेक्ट हो गया, आपके प्रश्न को समझ रहा है"
+    "streamingConnected": "Claude कनेक्ट हो गया, आपके प्रश्न को समझ रहा है",
+    "cursorModeCommandDefault": "डिफ़ॉल्ट मोड पर स्विच करें",
+    "cursorModeCommandPlan": "प्लान मोड पर स्विच करें (केवल योजना)",
+    "cursorModeCommandAsk": "Q&A मोड पर स्विच करें (केवल उत्तर)",
+    "cursorModeCommandOnlyCursor": "केवल Cursor मोड में उपलब्ध",
+    "cursorModeCommandHint": "वर्तमान मोड: {{mode}} (/cursor default|plan|ask)",
+    "cursorModeCommandSwitched": "{{mode}} मोड में स्विच किया गया",
+    "cursorModeLabelDefault": "डिफ़ॉल्ट",
+    "cursorModeLabelPlan": "प्लान",
+    "cursorModeLabelAsk": "Q&A",
+    "cursorModeBadgeTitle": "Cursor मोड",
+    "cursorModeBadgePrefix": "Cursor",
+    "cursorModeBadge": {
+      "default": "डिफ़ॉल्ट",
+      "plan": "प्लान",
+      "ask": "Q&A"
+    }
   },
   "settings": {
     "title": "सेटिंग्स",

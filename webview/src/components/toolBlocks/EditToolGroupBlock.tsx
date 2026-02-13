@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ToolInput, ToolResultBlock } from '../../types';
-import { openFile, showDiff, refreshFile } from '../../utils/bridge';
+import { openFile, showDiff, showEditFullDiff, refreshFile } from '../../utils/bridge';
 import { getFileName } from '../../utils/helpers';
 import { getFileIcon } from '../../utils/fileIcons';
 
@@ -10,6 +10,7 @@ interface EditItem {
   fileName: string;
   oldString: string;
   newString: string;
+  originalContent?: string;
   additions: number;
   deletions: number;
   isCompleted: boolean;
@@ -104,6 +105,11 @@ function parseEditItem(item: { name?: string; input?: ToolInput; result?: ToolRe
     (input.new_string as string | undefined) ??
     (input.newString as string | undefined) ??
     '';
+  const originalContent =
+    (input.originalContent as string | undefined) ??
+    (input.original_content as string | undefined) ??
+    (input.original_content_snapshot as string | undefined) ??
+    (input.originalSnapshot as string | undefined);
 
   const { additions, deletions } = computeDiffStats(oldString, newString);
   const isCompleted = result !== undefined && result !== null;
@@ -114,6 +120,7 @@ function parseEditItem(item: { name?: string; input?: ToolInput; result?: ToolRe
     fileName: getFileName(filePath) || filePath,
     oldString,
     newString,
+    originalContent,
     additions,
     deletions,
     isCompleted,
@@ -183,6 +190,17 @@ const EditToolGroupBlock = ({ items }: EditToolGroupBlockProps) => {
 
   const handleShowDiff = (item: EditItem, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (item.originalContent) {
+      showEditFullDiff(
+        item.filePath,
+        item.oldString,
+        item.newString,
+        item.originalContent,
+        false,
+        t('tools.editPrefix', { fileName: item.fileName })
+      );
+      return;
+    }
     showDiff(item.filePath, item.oldString, item.newString, t('tools.editPrefix', { fileName: item.fileName }));
   };
 

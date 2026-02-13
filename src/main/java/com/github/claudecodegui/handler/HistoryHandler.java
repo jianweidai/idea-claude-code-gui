@@ -104,7 +104,7 @@ public class HistoryHandler extends BaseMessageHandler {
                 String projectPath = context.getProject().getBasePath();
 
                 // 根据 provider 选择不同的 reader
-                if ("codex".equals(provider)) {
+                if ("codex".equals(provider) || "cursor".equals(provider)) {
                     // 使用 CodexHistoryReader 读取 Codex 会话（按项目过滤）
                     LOG.info("[HistoryHandler] 使用 CodexHistoryReader 读取 Codex 会话 (项目: " + projectPath + ")");
                     CodexHistoryReader codexReader = new CodexHistoryReader();
@@ -182,7 +182,7 @@ public class HistoryHandler extends BaseMessageHandler {
 
         try {
             // 1. 清空内存缓存
-            if ("codex".equals(provider)) {
+            if ("codex".equals(provider) || "cursor".equals(provider)) {
                 SessionIndexCache.getInstance().clearAllCodexCache();
                 LOG.info("[HistoryHandler] 已清空 Codex 内存缓存");
             } else {
@@ -191,7 +191,7 @@ public class HistoryHandler extends BaseMessageHandler {
             }
 
             // 2. 清空磁盘索引
-            if ("codex".equals(provider)) {
+            if ("codex".equals(provider) || "cursor".equals(provider)) {
                 SessionIndexManager.getInstance().clearAllCodexIndex();
                 LOG.info("[HistoryHandler] 已清空 Codex 磁盘索引");
             } else {
@@ -216,7 +216,7 @@ public class HistoryHandler extends BaseMessageHandler {
         String projectPath = context.getProject().getBasePath();
         LOG.info("[HistoryHandler] Loading history session: " + sessionId + " from project: " + projectPath + ", provider: " + currentProvider);
 
-        if ("codex".equals(currentProvider)) {
+        if ("codex".equals(currentProvider) || "cursor".equals(currentProvider)) {
             // Codex 会话：读取会话信息并恢复会话状态
             loadCodexSession(sessionId);
         } else {
@@ -763,7 +763,7 @@ public class HistoryHandler extends BaseMessageHandler {
                 int agentFilesDeleted = 0;
 
                 // 根据 provider 确定会话目录
-                if ("codex".equals(currentProvider)) {
+                if ("codex".equals(currentProvider) || "cursor".equals(currentProvider)) {
                     // Codex 会话：存储在 ~/.codex/sessions/
                     sessionDir = java.nio.file.Paths.get(homeDir, ".codex", "sessions");
                     LOG.info("[HistoryHandler] 使用 Codex 会话目录: " + sessionDir);
@@ -879,7 +879,7 @@ public class HistoryHandler extends BaseMessageHandler {
                     String projectPath = context.getProject().getBasePath();
                     LOG.info("[HistoryHandler] 清理会话缓存...");
 
-                    if ("codex".equals(currentProvider)) {
+                    if ("codex".equals(currentProvider) || "cursor".equals(currentProvider)) {
                         // Codex 使用 "__all__" 作为缓存键，需要清除所有 Codex 缓存
                         SessionIndexCache.getInstance().clearAllCodexCache();
                         SessionIndexManager.getInstance().clearAllCodexIndex();
@@ -927,7 +927,7 @@ public class HistoryHandler extends BaseMessageHandler {
 
                 // 根据 provider 选择不同的 reader
                 String messagesJson;
-                if ("codex".equals(currentProvider)) {
+                if ("codex".equals(currentProvider) || "cursor".equals(currentProvider)) {
                     LOG.info("[HistoryHandler] 使用 CodexHistoryReader 读取 Codex 会话消息");
                     CodexHistoryReader codexReader = new CodexHistoryReader();
                     messagesJson = codexReader.getSessionMessagesAsJson(sessionId);

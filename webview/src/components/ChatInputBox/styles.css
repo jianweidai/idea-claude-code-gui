@@ -938,6 +938,12 @@
   font-family: inherit;
 }
 
+.model-selector-dropdown {
+  max-height: min(60vh, 520px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .selector-option {
   display: flex;
   align-items: center;

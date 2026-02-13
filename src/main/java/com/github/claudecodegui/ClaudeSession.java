@@ -9,6 +9,7 @@ import com.github.claudecodegui.permission.PermissionManager;
 import com.github.claudecodegui.permission.PermissionRequest;
 import com.github.claudecodegui.provider.claude.ClaudeSDKBridge;
 import com.github.claudecodegui.provider.codex.CodexSDKBridge;
+import com.github.claudecodegui.provider.cursor.CursorSDKBridge;
 import com.github.claudecodegui.session.ClaudeMessageHandler;
 import com.github.claudecodegui.session.CodexMessageHandler;
 import com.github.claudecodegui.util.EditorFileUtils;
@@ -59,6 +60,7 @@ public class ClaudeSession {
     // SDK 桥接
     private final ClaudeSDKBridge claudeSDKBridge;
     private final CodexSDKBridge codexSDKBridge;
+    private final CursorSDKBridge cursorSDKBridge;
 
     // 权限管理
     private final PermissionManager permissionManager = new PermissionManager();
@@ -109,10 +111,11 @@ public class ClaudeSession {
         default void onThinkingDelta(String delta) {}
     }
 
-    public ClaudeSession(Project project, ClaudeSDKBridge claudeSDKBridge, CodexSDKBridge codexSDKBridge) {
+    public ClaudeSession(Project project, ClaudeSDKBridge claudeSDKBridge, CodexSDKBridge codexSDKBridge, CursorSDKBridge cursorSDKBridge) {
         this.project = project;
         this.claudeSDKBridge = claudeSDKBridge;
         this.codexSDKBridge = codexSDKBridge;
+        this.cursorSDKBridge = cursorSDKBridge;
 
         // 初始化管理器
         this.state = new com.github.claudecodegui.session.SessionState();
@@ -224,6 +227,8 @@ public class ClaudeSession {
                 String currentCwd = state.getCwd();
                 if ("codex".equals(currentProvider)) {
                     result = codexSDKBridge.launchChannel(currentChannelId, currentSessionId, currentCwd);
+                } else if ("cursor".equals(currentProvider)) {
+                    result = cursorSDKBridge.launchChannel(currentChannelId, currentSessionId, currentCwd);
                 } else {
                     result = claudeSDKBridge.launchChannel(currentChannelId, currentSessionId, currentCwd);
                 }
@@ -669,6 +674,8 @@ public class ClaudeSession {
 
         if ("codex".equals(currentProvider)) {
             return sendToCodex(channelId, input, attachments, openedFilesJson, agentPrompt, fileTagPaths);
+        } else if ("cursor".equals(currentProvider)) {
+            return sendToCursor(channelId, input, attachments, openedFilesJson, agentPrompt, fileTagPaths);
         } else {
             return sendToClaude(channelId, input, attachments, openedFilesJson, agentPrompt);
         }
@@ -703,6 +710,38 @@ public class ClaudeSession {
             state.getModel(),
             agentPrompt,
             state.getReasoningEffort(),
+            handler
+        ).thenApply(result -> null);
+    }
+
+    /**
+     * 发送消息到 Cursor CLI
+     * 英文：Send message to Cursor
+     * 解释：用 Cursor CLI 发送消息
+     * @param fileTagPaths 文件标签路径列表（用于上下文注入）
+     */
+    private CompletableFuture<Void> sendToCursor(
+        String channelId,
+        String input,
+        List<Attachment> attachments,
+        JsonObject openedFilesJson,
+        String agentPrompt,
+        List<String> fileTagPaths
+    ) {
+        CodexMessageHandler handler = new CodexMessageHandler(state, callbackHandler);
+
+        String contextAppend = buildCodexContextAppend(openedFilesJson, fileTagPaths);
+        String finalInput = (input != null ? input : "") + contextAppend;
+
+        return cursorSDKBridge.sendMessage(
+            channelId,
+            finalInput,
+            state.getSessionId(),
+            state.getCwd(),
+            attachments,
+            state.getPermissionMode(),
+            state.getModel(),
+            state.getCursorMode(),
             handler
         ).thenApply(result -> null);
     }
@@ -1130,6 +1169,8 @@ public class ClaudeSession {
                 String currentChannelId = state.getChannelId();
                 if ("codex".equals(currentProvider)) {
                     codexSDKBridge.interruptChannel(currentChannelId);
+                } else if ("cursor".equals(currentProvider)) {
+                    cursorSDKBridge.interruptChannel(currentChannelId);
                 } else {
                     claudeSDKBridge.interruptChannel(currentChannelId);
                 }
@@ -1183,7 +1224,7 @@ public class ClaudeSession {
 
                 LOG.info("Loading session from server: sessionId=" + currentSessionId + ", cwd=" + currentCwd);
                 List<JsonObject> serverMessages;
-                if ("codex".equals(currentProvider)) {
+                if ("codex".equals(currentProvider) || "cursor".equals(currentProvider)) {
                     serverMessages = codexSDKBridge.getSessionMessages(currentSessionId, currentCwd);
                 } else {
                     serverMessages = claudeSDKBridge.getSessionMessages(currentSessionId, currentCwd);
@@ -1337,6 +1378,21 @@ public class ClaudeSession {
      */
     public String getReasoningEffort() {
         return state.getReasoningEffort();
+    }
+
+    /**
+     * 设置 Cursor 模式
+     */
+    public void setCursorMode(String mode) {
+        state.setCursorMode(mode);
+        LOG.info("Cursor mode updated to: " + mode);
+    }
+
+    /**
+     * 获取 Cursor 模式
+     */
+    public String getCursorMode() {
+        return state.getCursorMode();
     }
 
     /**

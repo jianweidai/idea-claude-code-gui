@@ -1,8 +1,8 @@
 import { useCallback, useMemo, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { ButtonAreaProps, ModelInfo, PermissionMode, ReasoningEffort } from './types';
-import { ConfigSelect, ModelSelect, ModeSelect, ReasoningSelect } from './selectors';
-import { CLAUDE_MODELS, CODEX_MODELS } from './types';
+import type { ButtonAreaProps, ModelInfo, PermissionMode, ReasoningEffort, CursorMode } from './types';
+import { ConfigSelect, ModelSelect, ModeSelect, ReasoningSelect, CursorModeSelect } from './selectors';
+import { CLAUDE_MODELS, CODEX_MODELS, CURSOR_MODELS } from './types';
 import { STORAGE_KEYS, validateCodexCustomModels } from '../../types/provider';
 
 /**
@@ -44,12 +44,15 @@ export const ButtonArea = ({
   permissionMode = 'bypassPermissions',
   currentProvider = 'claude',
   reasoningEffort = 'medium',
+  cursorMode = 'default',
+  cursorModels,
   onSubmit,
   onStop,
   onModeSelect,
   onModelSelect,
   onProviderSelect,
   onReasoningChange,
+  onCursorModeChange,
   onEnhancePrompt,
   alwaysThinkingEnabled = false,
   onToggleThinking,
@@ -128,6 +131,12 @@ export const ButtonArea = ({
       const filteredBuiltIn = CODEX_MODELS.filter(m => !customIds.has(m.id));
       return [...customModels, ...filteredBuiltIn];
     }
+    if (currentProvider === 'cursor') {
+      if (Array.isArray(cursorModels) && cursorModels.length > 0) {
+        return cursorModels;
+      }
+      return CURSOR_MODELS;
+    }
     if (typeof window === 'undefined' || !window.localStorage) {
       return CLAUDE_MODELS;
     }
@@ -193,6 +202,13 @@ export const ButtonArea = ({
   }, [onReasoningChange]);
 
   /**
+   * 处理 Cursor 模式选择
+   */
+  const handleCursorModeChange = useCallback((mode: CursorMode) => {
+    onCursorModeChange?.(mode);
+  }, [onCursorModeChange]);
+
+  /**
    * 处理增强提示词按钮点击
    */
   const handleEnhanceClick = useCallback((e: React.MouseEvent) => {
@@ -215,10 +231,15 @@ export const ButtonArea = ({
           onAgentSelect={onAgentSelect}
           onOpenAgentSettings={onOpenAgentSettings}
         />
-        <ModeSelect value={permissionMode} onChange={handleModeSelect} provider={currentProvider} />
+        {currentProvider !== 'cursor' && (
+          <ModeSelect value={permissionMode} onChange={handleModeSelect} provider={currentProvider} />
+        )}
         <ModelSelect value={selectedModel} onChange={handleModelSelect} models={availableModels} currentProvider={currentProvider} />
         {currentProvider === 'codex' && (
           <ReasoningSelect value={reasoningEffort} onChange={handleReasoningChange} />
+        )}
+        {currentProvider === 'cursor' && (
+          <CursorModeSelect value={cursorMode} onChange={handleCursorModeChange} />
         )}
       </div>
 

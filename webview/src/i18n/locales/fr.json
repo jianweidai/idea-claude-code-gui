@@ -82,7 +82,23 @@
     "clearCommandDescription": "Effacer l'historique et démarrer une nouvelle session",
     "attachmentFile": "[Pièce jointe: {{fileName}}]",
     "attachmentsUploaded": "[Pièces jointes téléchargées]",
-    "streamingConnected": "Claude connecté, en train de comprendre votre question"
+    "streamingConnected": "Claude connecté, en train de comprendre votre question",
+    "cursorModeCommandDefault": "Passer en mode par défaut",
+    "cursorModeCommandPlan": "Passer en mode plan (plan uniquement)",
+    "cursorModeCommandAsk": "Passer en mode Q/R (réponse uniquement)",
+    "cursorModeCommandOnlyCursor": "Disponible uniquement en mode Cursor",
+    "cursorModeCommandHint": "Mode actuel : {{mode}} (/cursor default|plan|ask)",
+    "cursorModeCommandSwitched": "Passé en mode {{mode}}",
+    "cursorModeLabelDefault": "Par défaut",
+    "cursorModeLabelPlan": "Plan",
+    "cursorModeLabelAsk": "Q&R",
+    "cursorModeBadgeTitle": "Mode Cursor",
+    "cursorModeBadgePrefix": "Cursor",
+    "cursorModeBadge": {
+      "default": "Par défaut",
+      "plan": "Plan",
+      "ask": "Q&R"
+    }
   },
   "settings": {
     "title": "Paramètres",

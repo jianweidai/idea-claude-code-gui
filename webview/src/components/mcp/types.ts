@@ -12,6 +12,8 @@ export interface McpSettingsSectionProps {
   currentProvider?: 'claude' | 'codex' | string;
 }
 
+export type McpProviderType = 'claude' | 'codex' | 'cursor';
+
 // ============================================================================
 // 缓存相关类型
 // ============================================================================

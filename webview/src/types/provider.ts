@@ -12,6 +12,8 @@ export const STORAGE_KEYS = {
   CODEX_CUSTOM_MODELS: 'codex-custom-models',
   /** Claude 模型映射配置 */
   CLAUDE_MODEL_MAPPING: 'claude-model-mapping',
+  /** Cursor 模型缓存 */
+  CURSOR_MODELS_CACHE: 'cursor-models-cache',
 } as const;
 
 /**

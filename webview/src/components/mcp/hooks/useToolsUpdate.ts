@@ -5,10 +5,11 @@
 
 import { useEffect } from 'react';
 import type { ServerToolsState, McpTool, RefreshLog, CacheKeys } from '../types';
+import type { McpProviderType } from '../types';
 import { writeToolsCache } from '../utils';
 
 export interface UseToolsUpdateOptions {
-  isCodexMode: boolean;
+  providerType: McpProviderType;
   cacheKeys: CacheKeys;
   setServerTools: React.Dispatch<React.SetStateAction<ServerToolsState>>;
   onLog: (message: string, type: RefreshLog['type'], details?: string, serverName?: string, requestInfo?: string, errorReason?: string) => void;
@@ -19,13 +20,13 @@ export interface UseToolsUpdateOptions {
  * 注册 window.updateMcpServerTools 回调
  */
 export function useToolsUpdate({
-  isCodexMode,
+  providerType,
   cacheKeys,
   setServerTools,
   onLog,
 }: UseToolsUpdateOptions): void {
   useEffect(() => {
-    if (isCodexMode) {
+    if (providerType === 'codex') {
       // Codex 模式不需要工具列表更新
       return;
     }
@@ -110,11 +111,19 @@ export function useToolsUpdate({
     };
 
     // 注册到 window 对象
-    window.updateMcpServerTools = handleToolsUpdate;
+    if (providerType === 'cursor') {
+      window.updateCursorMcpServerTools = handleToolsUpdate;
+    } else {
+      window.updateMcpServerTools = handleToolsUpdate;
+    }
 
     // 清理
     return () => {
-      window.updateMcpServerTools = undefined;
+      if (providerType === 'cursor') {
+        window.updateCursorMcpServerTools = undefined;
+      } else {
+        window.updateMcpServerTools = undefined;
+      }
     };
-  }, [isCodexMode, cacheKeys, setServerTools, onLog]);
+  }, [providerType, cacheKeys, setServerTools, onLog]);
 }

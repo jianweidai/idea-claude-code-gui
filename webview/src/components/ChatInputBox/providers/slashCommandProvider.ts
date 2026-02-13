@@ -30,6 +30,29 @@ function getLocalNewSessionCommands(): CommandItem[] {
   }];
 }
 
+function getLocalCursorModeCommands(): CommandItem[] {
+  return [
+    {
+      id: 'cursor-default',
+      label: '/cursor default',
+      description: i18n.t('chat.cursorModeCommandDefault', { defaultValue: '切换为默认模式' }),
+      category: 'system',
+    },
+    {
+      id: 'cursor-plan',
+      label: '/cursor plan',
+      description: i18n.t('chat.cursorModeCommandPlan', { defaultValue: '切换为规划模式（只规划不改动）' }),
+      category: 'system',
+    },
+    {
+      id: 'cursor-ask',
+      label: '/cursor ask',
+      description: i18n.t('chat.cursorModeCommandAsk', { defaultValue: '切换为问答模式（只答不改动）' }),
+      category: 'system',
+    },
+  ];
+}
+
 // ============================================================================
 // 状态管理
 // ============================================================================
@@ -236,7 +259,8 @@ function getCategoryFromCommand(name: string): string {
 function filterCommands(commands: CommandItem[], query: string): CommandItem[] {
   const visibleCommands = commands.filter(cmd => !isHiddenCommand(cmd.label));
   const localCommands = getLocalNewSessionCommands();
-  const merged = [...localCommands, ...visibleCommands];
+  const cursorCommands = getLocalCursorModeCommands();
+  const merged = [...localCommands, ...cursorCommands, ...visibleCommands];
 
   if (!query) return merged;
 

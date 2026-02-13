@@ -10,7 +10,11 @@
  */
 export async function readStdinData(provider = 'claude') {
   // 检查是否启用了 stdin 输入
-  const envKey = provider === 'codex' ? 'CODEX_USE_STDIN' : 'CLAUDE_USE_STDIN';
+  const envKey = provider === 'codex'
+    ? 'CODEX_USE_STDIN'
+    : provider === 'cursor'
+      ? 'CURSOR_USE_STDIN'
+      : 'CLAUDE_USE_STDIN';
   if (process.env[envKey] !== 'true') {
     return null;
   }

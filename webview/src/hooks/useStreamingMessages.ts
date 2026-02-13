@@ -95,6 +95,42 @@ export function useStreamingMessages(): UseStreamingMessagesReturn {
       .replace(/\n+$/, '');
   };
 
+  const coalesceAdjacentThinkingBlocks = (blocks: any[]): any[] => {
+    const merged: any[] = [];
+
+    for (const block of blocks) {
+      if (!block || typeof block !== 'object') {
+        continue;
+      }
+      if (block.type !== 'thinking') {
+        merged.push(block);
+        continue;
+      }
+
+      const currentText = typeof block.thinking === 'string'
+        ? block.thinking
+        : typeof block.text === 'string'
+          ? block.text
+          : '';
+
+      const last = merged[merged.length - 1];
+      if (last?.type === 'thinking') {
+        const lastText = typeof last.thinking === 'string'
+          ? last.thinking
+          : typeof last.text === 'string'
+            ? last.text
+            : '';
+        const needsSeparator = lastText.length > 0 && !lastText.endsWith('\n') && currentText.length > 0;
+        const combined = `${lastText}${needsSeparator ? '\n' : ''}${currentText}`;
+        merged[merged.length - 1] = { ...last, thinking: combined, text: combined };
+      } else {
+        merged.push({ ...block, thinking: currentText, text: currentText });
+      }
+    }
+
+    return merged;
+  };
+
   // Helper: Build streaming blocks from segments
   const buildStreamingBlocks = (existingBlocks: any[]): any[] => {
     const textSegments = streamingTextSegmentsRef.current;
@@ -147,7 +183,7 @@ export function useStreamingMessages(): UseStreamingMessagesReturn {
       }
     }
 
-    return output;
+    return coalesceAdjacentThinkingBlocks(output);
   };
 
   /**

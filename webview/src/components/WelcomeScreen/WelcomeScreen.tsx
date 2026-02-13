@@ -15,6 +15,13 @@ export function WelcomeScreen({
   t,
   onProviderChange,
 }: WelcomeScreenProps): React.ReactElement {
+  const providerLabelMap: Record<string, string> = {
+    claude: 'Claude Code',
+    codex: 'Codex Cli',
+    cursor: 'Cursor CLI',
+    gemini: 'Gemini Cli',
+  };
+
   return (
     <div
       style={{
@@ -34,7 +41,7 @@ export function WelcomeScreen({
         </span>
       </div>
       <div>
-        <AnimatedText text={t('chat.sendMessage', { provider: currentProvider === 'codex' ? 'Codex Cli' : 'Claude Code' })} />
+        <AnimatedText text={t('chat.sendMessage', { provider: providerLabelMap[currentProvider] || 'Claude Code' })} />
       </div>
     </div>
   );

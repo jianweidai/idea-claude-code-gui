@@ -43,6 +43,10 @@ public final class ContentRebuildUtil {
     }
 
     private static String reverseReplaceAll(String content, String oldString, String newString) {
+        if (shouldSkipEmptyOldReverse(content, oldString, newString)) {
+            LOG.info("rebuildBeforeContent: skip reverse replace_all for empty oldString large block");
+            return content;
+        }
         // First try exact match
         if (content.contains(newString)) {
             return content.replace(newString, oldString);
@@ -66,6 +70,10 @@ public final class ContentRebuildUtil {
     }
 
     private static String reverseReplaceSingle(String content, String oldString, String newString) {
+        if (shouldSkipEmptyOldReverse(content, oldString, newString)) {
+            LOG.info("rebuildBeforeContent: skip reverse replace_single for empty oldString large block");
+            return content;
+        }
         // First try exact match
         int index = content.indexOf(newString);
         if (index >= 0) {
@@ -91,6 +99,22 @@ public final class ContentRebuildUtil {
         }
         LOG.warn("rebuildBeforeContent: newString not found, skipping operation");
         return content;
+    }
+
+    /**
+     * 对 empty-old 编辑做保护：在整段 streamContent 场景下，反向替换会把整页清空。
+     */
+    private static boolean shouldSkipEmptyOldReverse(String content, String oldString, String newString) {
+        if (oldString == null || !oldString.isEmpty()) return false;
+        if (newString == null || newString.isEmpty()) return false;
+        if (content == null || content.isEmpty()) return false;
+
+        if (content.equals(newString)) return true;
+
+        int contentLen = content.length();
+        int newLen = newString.length();
+        // 明显是“大块替换/整文件覆盖”的保守阈值
+        return newLen >= Math.max(256, (int) (contentLen * 0.45));
     }
 
     /**

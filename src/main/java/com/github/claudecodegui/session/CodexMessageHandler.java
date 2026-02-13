@@ -191,19 +191,21 @@ public class CodexMessageHandler implements MessageCallback {
             com.google.gson.Gson gson = new com.google.gson.Gson();
             com.google.gson.JsonObject msgJson = gson.fromJson(jsonContent, com.google.gson.JsonObject.class);
             if (msgJson == null || !msgJson.has("usage") || !msgJson.get("usage").isJsonObject()) {
+                LOG.info("Codex/Cursor result message has no usage object");
                 return;
             }
 
             com.google.gson.JsonObject usage = msgJson.getAsJsonObject("usage");
+            LOG.info("Codex/Cursor usage received: " + usage);
             boolean updated = attachUsageToLastAssistant(usage);
             if (updated) {
                 callbackHandler.notifyMessageUpdate(state.getMessages());
                 LOG.info("Codex usage applied from result message");
             } else {
-                LOG.debug("Codex usage received but no assistant message to attach");
+                LOG.info("Codex/Cursor usage received but no assistant message to attach");
             }
         } catch (Exception e) {
-            LOG.debug("Failed to parse Codex result message: " + e.getMessage());
+            LOG.info("Failed to parse Codex/Cursor result message: " + e.getMessage());
         }
     }
 
@@ -261,13 +263,16 @@ public class CodexMessageHandler implements MessageCallback {
      */
     private boolean attachUsageToLastAssistant(com.google.gson.JsonObject usage) {
         java.util.List<Message> messages = state.getMessagesReference();
+        LOG.info("attachUsageToLastAssistant scanning messages: " + messages.size());
         for (int i = messages.size() - 1; i >= 0; i--) {
             Message msg = messages.get(i);
             if (msg.type == Message.Type.ASSISTANT && msg.raw != null) {
                 msg.raw.add("usage", usage);
+                LOG.info("Usage attached to assistant message index: " + i);
                 return true;
             }
         }
+        LOG.info("No assistant message found for usage attachment");
         return false;
     }
 

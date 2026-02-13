@@ -86,7 +86,23 @@
     "attachmentFile": "[附件: {{fileName}}]",
     "unknownFile": "未知文件",
     "attachmentsUploaded": "[已上传附件]",
-    "streamingConnected": "Claude 已成功连接，正在理解问题"
+    "streamingConnected": "Claude 已成功连接，正在理解问题",
+    "cursorModeCommandDefault": "切换为默认模式",
+    "cursorModeCommandPlan": "切换为规划模式（只规划不改动）",
+    "cursorModeCommandAsk": "切换为问答模式（只答不改动）",
+    "cursorModeCommandOnlyCursor": "仅在 Cursor 模式下可用",
+    "cursorModeCommandHint": "当前模式：{{mode}}（可用：/cursor default|plan|ask）",
+    "cursorModeCommandSwitched": "已切换为{{mode}}模式",
+    "cursorModeLabelDefault": "默认",
+    "cursorModeLabelPlan": "规划",
+    "cursorModeLabelAsk": "问答",
+    "cursorModeBadgeTitle": "Cursor 执行模式",
+    "cursorModeBadgePrefix": "Cursor",
+    "cursorModeBadge": {
+      "default": "默认",
+      "plan": "规划",
+      "ask": "问答"
+    }
   },
   "settings": {
     "title": "设置",

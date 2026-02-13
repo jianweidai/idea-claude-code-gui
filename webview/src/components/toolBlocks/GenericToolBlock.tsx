@@ -20,6 +20,7 @@ const CODICON_MAP: Record<string, string> = {
   augmentcontextengine: 'codicon-symbol-class', // Added based on Picture 2
   update_plan: 'codicon-checklist', // Update plan tool
   shell_command: 'codicon-terminal', // Shell command tool
+  mcptoolcall: 'codicon-plug', // MCP tool call
 };
 
 /**
@@ -39,6 +40,16 @@ const getToolDisplayName = (t: any, name?: string, input?: ToolInput) => {
   }
 
   const lowerName = name.toLowerCase();
+
+  // MCP 工具调用：标题直接显示具体 MCP 工具名，避免多个 mcpToolCall 无法区分
+  if (lowerName === 'mcptoolcall' || lowerName === 'mcp_tool_call') {
+    const mcpToolName = (typeof input?.name === 'string' && input.name.trim())
+      ? input.name.trim()
+      : (typeof input?.toolName === 'string' && input.toolName.trim())
+        ? input.toolName.trim()
+        : '';
+    return mcpToolName ? `MCP · ${mcpToolName}` : 'MCP Tool Call';
+  }
 
   // For shell_command, check the actual command to determine display name
   if (lowerName === 'shell_command' && input?.command) {
@@ -77,6 +88,8 @@ const getToolDisplayName = (t: any, name?: string, input?: ToolInput) => {
     'find': 'tools.findFile',
     'todowrite': 'tools.todoList',
     'update_plan': 'tools.updatePlan',
+    'semsearchtoolcall': 'tools.search',
+    'greptoolcall': 'tools.search',
   };
 
   if (toolKeyMap[lowerName]) {
@@ -224,10 +237,9 @@ interface GenericToolBlockProps {
 
 const GenericToolBlock = ({ name, input, result, toolId }: GenericToolBlockProps) => {
   const { t } = useTranslation();
-  // Tools that should be collapsible (Grep, Glob, Write, Update Plan, Shell Command and MCP tools)
   const lowerName = (name ?? '').toLowerCase();
-  const isMcpTool = lowerName.startsWith('mcp__');
-  const isCollapsible = ['grep', 'glob', 'write', 'save-file', 'askuserquestion', 'update_plan', 'shell_command', 'exitplanmode', 'webfetch', 'websearch', 'skill', 'useskill', 'runskill', 'run_skill', 'execute_skill'].includes(lowerName) || isMcpTool;
+  const alwaysExpandedTools = new Set(['askuserquestion']);
+  const isCollapsible = !alwaysExpandedTools.has(lowerName);
   const [expanded, setExpanded] = useState(false);
 
   const filePath = input ? pickFilePath(input, name) : undefined;
@@ -253,12 +265,22 @@ const GenericToolBlock = ({ name, input, result, toolId }: GenericToolBlockProps
   let summary: string | null = null;
   if (filePath) {
     summary = getFileName(filePath);
+  } else if (typeof input.query === 'string') {
+    summary = truncate(input.query);
   } else if (typeof input.command === 'string') {
     summary = truncate(input.command);
   } else if (typeof input.search_term === 'string') {
     summary = truncate(input.search_term);
   } else if (typeof input.pattern === 'string') {
     summary = truncate(input.pattern);
+  } else if (typeof input.url === 'string') {
+    summary = truncate(input.url);
+  } else if (typeof input.uri === 'string') {
+    summary = truncate(input.uri);
+  } else if (typeof input.question === 'string') {
+    summary = truncate(input.question);
+  } else if (typeof input.prompt === 'string') {
+    summary = truncate(input.prompt);
   }
 
   const otherParams = Object.entries(input).filter(
@@ -370,4 +392,3 @@ const GenericToolBlock = ({ name, input, result, toolId }: GenericToolBlockProps
 };
 
 export default GenericToolBlock;
-

@@ -4,6 +4,7 @@
  */
 
 import type { McpServer, McpServerStatusInfo } from '../types';
+import type { McpProviderType } from '../types';
 
 // ============================================================================
 // 图标颜色配置
@@ -69,9 +70,17 @@ export function isServerEnabled(server: McpServer, isCodexMode: boolean): boolea
     return server.enabled;
   }
   // Check provider-specific apps field
-  return isCodexMode
-    ? server.apps?.codex !== false
-    : server.apps?.claude !== false;
+  if (isCodexMode) {
+    return server.apps?.codex !== false;
+  }
+  return server.apps?.claude !== false;
+}
+
+export function isServerEnabledByProvider(server: McpServer, providerType: McpProviderType): boolean {
+  if (providerType === 'cursor') {
+    return server.enabled !== false;
+  }
+  return isServerEnabled(server, providerType === 'codex');
 }
 
 // ============================================================================
@@ -88,10 +97,10 @@ export function isServerEnabled(server: McpServer, isCodexMode: boolean): boolea
 export function getStatusIcon(
   server: McpServer,
   status: McpServerStatusInfo['status'] | undefined,
-  isCodexMode: boolean
+  providerType: McpProviderType
 ): string {
   // 如果服务器被禁用，显示禁用图标
-  if (!isServerEnabled(server, isCodexMode)) {
+  if (!isServerEnabledByProvider(server, providerType)) {
     return 'codicon-circle-slash';
   }
 
@@ -119,10 +128,10 @@ export function getStatusIcon(
 export function getStatusColor(
   server: McpServer,
   status: McpServerStatusInfo['status'] | undefined,
-  isCodexMode: boolean
+  providerType: McpProviderType
 ): string {
   // 如果服务器被禁用，显示灰色
-  if (!isServerEnabled(server, isCodexMode)) {
+  if (!isServerEnabledByProvider(server, providerType)) {
     return '#9CA3AF';
   }
 
@@ -151,11 +160,11 @@ export function getStatusColor(
 export function getStatusText(
   server: McpServer,
   status: McpServerStatusInfo['status'] | undefined,
-  isCodexMode: boolean,
+  providerType: McpProviderType,
   t: (key: string) => string
 ): string {
   // 如果服务器被禁用，显示"已禁用"
-  if (!isServerEnabled(server, isCodexMode)) {
+  if (!isServerEnabledByProvider(server, providerType)) {
     return t('mcp.disabled');
   }
 

@@ -1,26 +1,13 @@
 import { useEffect, useState, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Claude, OpenAI, Gemini } from '@lobehub/icons';
 import styles from './style.module.less';
 import { AVAILABLE_PROVIDERS } from '../ChatInputBox/types';
+import { ProviderIcon } from '../ProviderIcon';
 
 interface BlinkingLogoProps {
   provider: string;
   onProviderChange?: (providerId: string) => void;
 }
-
-const ProviderIcon = ({ providerId, size = 16, colored = false }: { providerId: string; size?: number; colored?: boolean }) => {
-  switch (providerId) {
-    case 'claude':
-      return colored ? <Claude.Color size={size} /> : <Claude.Avatar size={size} />;
-    case 'codex':
-      return <OpenAI.Avatar size={size} />;
-    case 'gemini':
-      return colored ? <Gemini.Color size={size} /> : <Gemini.Avatar size={size} />;
-    default:
-      return colored ? <Claude.Color size={size} /> : <Claude.Avatar size={size} />;
-  }
-};
 
 export const BlinkingLogo = ({ provider, onProviderChange }: BlinkingLogoProps) => {
   const { t } = useTranslation();
@@ -122,6 +109,11 @@ export const BlinkingLogo = ({ provider, onProviderChange }: BlinkingLogoProps) 
     return t(`providers.${providerId}.label`);
   };
 
+  const getMainIconSize = (providerId: string) => {
+    if (providerId === 'claude') return 58;
+    return 64;
+  };
+
   return (
     <div style={{ position: 'relative', display: 'inline-flex', flexDirection: 'column', alignItems: 'center' }}>
       <div 
@@ -130,11 +122,7 @@ export const BlinkingLogo = ({ provider, onProviderChange }: BlinkingLogoProps) 
         onClick={handleToggle}
         style={{ cursor: onProviderChange ? 'pointer' : 'default' }}
       >
-        {displayProvider === 'codex' ? (
-          <OpenAI.Avatar size={64} />
-        ) : (
-          <Claude.Color size={58} />
-        )}
+        <ProviderIcon providerId={displayProvider} size={getMainIconSize(displayProvider)} colored={true} />
       </div>
       
       {isOpen && (

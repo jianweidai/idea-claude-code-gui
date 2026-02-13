@@ -225,6 +225,7 @@ public abstract class BaseSDKBridge {
             StringBuilder assistantContent = new StringBuilder();
             final boolean[] hadSendError = {false};
             final String[] lastNodeError = {null};
+            java.util.ArrayDeque<String> recentOutput = new java.util.ArrayDeque<>(20);
 
             try {
                 File bridgeDir = getDirectoryResolver().findSdkDir();
@@ -283,13 +284,20 @@ public abstract class BaseSDKBridge {
 
                         String line;
                         while ((line = reader.readLine()) != null) {
+                            if (!line.isEmpty()) {
+                                if (recentOutput.size() >= 20) {
+                                    recentOutput.removeFirst();
+                                }
+                                recentOutput.addLast(line);
+                            }
 
                             // Capture Node.js error logs
                             if (line.startsWith("[UNCAUGHT_ERROR]")
                                     || line.startsWith("[UNHANDLED_REJECTION]")
                                     || line.startsWith("[COMMAND_ERROR]")
                                     || line.startsWith("[STARTUP_ERROR]")
-                                    || line.startsWith("[ERROR]")) {
+                                    || line.startsWith("[ERROR]")
+                                    || line.startsWith("[CURSOR_STDERR]")) {
                                 LOG.warn("[Node.js ERROR] " + line);
                                 lastNodeError[0] = line;
                             }
@@ -319,6 +327,9 @@ public abstract class BaseSDKBridge {
                             String errorMsg = getProviderName() + " process exited with code: " + exitCode;
                             if (lastNodeError[0] != null && !lastNodeError[0].isEmpty()) {
                                 errorMsg = errorMsg + "\n\nDetails: " + lastNodeError[0];
+                            } else if (!recentOutput.isEmpty()) {
+                                String tail = String.join("\n", recentOutput);
+                                errorMsg = errorMsg + "\n\nRecent output:\n" + tail;
                             }
                             result.error = errorMsg;
                             callback.onError(errorMsg);

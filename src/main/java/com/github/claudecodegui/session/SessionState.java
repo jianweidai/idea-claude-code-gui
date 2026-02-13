@@ -34,6 +34,8 @@ public class SessionState {
     private String provider = "claude";
     // Codex reasoning effort (思考深度)
     private String reasoningEffort = "medium";
+    // Cursor execution mode (default/plan/ask)
+    private String cursorMode = "default";
 
     // 斜杠命令
     private List<String> slashCommands = new ArrayList<>();
@@ -98,6 +100,10 @@ public class SessionState {
         return reasoningEffort;
     }
 
+    public String getCursorMode() {
+        return cursorMode;
+    }
+
     public List<String> getSlashCommands() {
         return new ArrayList<>(slashCommands);
     }
@@ -155,6 +161,10 @@ public class SessionState {
 
     public void setReasoningEffort(String reasoningEffort) {
         this.reasoningEffort = reasoningEffort;
+    }
+
+    public void setCursorMode(String cursorMode) {
+        this.cursorMode = cursorMode;
     }
 
     public void setSlashCommands(List<String> slashCommands) {
